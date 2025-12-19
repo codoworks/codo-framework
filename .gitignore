@@ -1,0 +1,51 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Test binary
+*.test
+
+# Go build cache
+*.o
+*.a
+
+# Go coverage
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Logs
+*.log
+logs/
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Example application code (framework-only repo)
+pkg/
+
+# Temporary files
+tmp/
+temp/
