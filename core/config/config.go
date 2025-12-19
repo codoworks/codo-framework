@@ -7,6 +7,7 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
 	Auth     AuthConfig     `yaml:"auth"`
+	RabbitMQ RabbitMQConfig `yaml:"rabbitmq"`
 	Features FeaturesConfig `yaml:"features"`
 	DevMode  bool           `yaml:"-"` // Not loaded from YAML
 }
@@ -18,6 +19,7 @@ func NewWithDefaults() *Config {
 		Server:   DefaultServerConfig(),
 		Database: DefaultDatabaseConfig(),
 		Auth:     DefaultAuthConfig(),
+		RabbitMQ: DefaultRabbitMQConfig(),
 		Features: DefaultFeaturesConfig(),
 		DevMode:  false,
 	}
@@ -42,6 +44,12 @@ func (c *Config) Validate() error {
 	if err := c.Auth.Validate(); err != nil {
 		return err
 	}
+	// Only validate RabbitMQ if enabled
+	if c.RabbitMQ.IsEnabled() {
+		if err := c.RabbitMQ.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -57,6 +65,7 @@ func (c *Config) Clone() *Config {
 		Server:   c.Server,
 		Database: c.Database,
 		Auth:     c.Auth,
+		RabbitMQ: c.RabbitMQ,
 		Features: FeaturesConfig{
 			DisabledFeatures: make([]string, len(c.Features.DisabledFeatures)),
 		},

@@ -77,10 +77,10 @@ func TestConfig_ApplyDefaults_PreservesNonZeroValues(t *testing.T) {
 			PublicPort:    3000,
 			ProtectedPort: 3001,
 			HiddenPort:    3002,
-			ReadTimeout:   10 * time.Second,
-			WriteTimeout:  10 * time.Second,
-			IdleTimeout:   30 * time.Second,
-			ShutdownGrace: 5 * time.Second,
+			ReadTimeout:   Duration(10 * time.Second),
+			WriteTimeout:  Duration(10 * time.Second),
+			IdleTimeout:   Duration(30 * time.Second),
+			ShutdownGrace: Duration(5 * time.Second),
 		},
 		Database: DatabaseConfig{
 			Driver:          "mysql",
@@ -91,7 +91,7 @@ func TestConfig_ApplyDefaults_PreservesNonZeroValues(t *testing.T) {
 			SSLMode:         "require",
 			MaxOpenConns:    50,
 			MaxIdleConns:    10,
-			ConnMaxLifetime: 600,
+			ConnMaxLifetime: Duration(10 * time.Minute),
 		},
 		Auth: AuthConfig{
 			KratosPublicURL: "https://auth.example.com",
@@ -119,7 +119,7 @@ func TestConfig_ApplyDefaults_PreservesNonZeroValues(t *testing.T) {
 	assert.Equal(t, "require", cfg.Database.SSLMode)
 	assert.Equal(t, 50, cfg.Database.MaxOpenConns)
 	assert.Equal(t, 10, cfg.Database.MaxIdleConns)
-	assert.Equal(t, 600, cfg.Database.ConnMaxLifetime)
+	assert.Equal(t, 10*time.Minute, cfg.Database.ConnMaxLifetime.Duration())
 	assert.Equal(t, "https://auth.example.com", cfg.Auth.KratosPublicURL)
 	assert.Equal(t, "https://auth-admin.example.com", cfg.Auth.KratosAdminURL)
 	assert.Equal(t, "my_session", cfg.Auth.SessionCookie)
@@ -170,10 +170,10 @@ func TestConfig_ApplyDefaults_Timeouts(t *testing.T) {
 
 	cfg.ApplyDefaults()
 
-	assert.Equal(t, 30*time.Second, cfg.Server.ReadTimeout)
-	assert.Equal(t, 30*time.Second, cfg.Server.WriteTimeout)
-	assert.Equal(t, 60*time.Second, cfg.Server.IdleTimeout)
-	assert.Equal(t, 20*time.Second, cfg.Server.ShutdownGrace)
+	assert.Equal(t, 30*time.Second, cfg.Server.ReadTimeout.Duration())
+	assert.Equal(t, 30*time.Second, cfg.Server.WriteTimeout.Duration())
+	assert.Equal(t, 60*time.Second, cfg.Server.IdleTimeout.Duration())
+	assert.Equal(t, 20*time.Second, cfg.Server.ShutdownGrace.Duration())
 }
 
 func TestConfig_ApplyDefaults_DevModeNotChanged(t *testing.T) {

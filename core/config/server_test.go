@@ -14,10 +14,10 @@ func TestDefaultServerConfig(t *testing.T) {
 	assert.Equal(t, 8081, cfg.PublicPort)
 	assert.Equal(t, 8080, cfg.ProtectedPort)
 	assert.Equal(t, 8079, cfg.HiddenPort)
-	assert.Equal(t, 30*time.Second, cfg.ReadTimeout)
-	assert.Equal(t, 30*time.Second, cfg.WriteTimeout)
-	assert.Equal(t, 60*time.Second, cfg.IdleTimeout)
-	assert.Equal(t, 20*time.Second, cfg.ShutdownGrace)
+	assert.Equal(t, 30*time.Second, cfg.ReadTimeout.Duration())
+	assert.Equal(t, 30*time.Second, cfg.WriteTimeout.Duration())
+	assert.Equal(t, 60*time.Second, cfg.IdleTimeout.Duration())
+	assert.Equal(t, 20*time.Second, cfg.ShutdownGrace.Duration())
 }
 
 func TestServerConfig_Validate_Valid(t *testing.T) {
@@ -25,10 +25,10 @@ func TestServerConfig_Validate_Valid(t *testing.T) {
 		PublicPort:    9000,
 		ProtectedPort: 9001,
 		HiddenPort:    9002,
-		ReadTimeout:   10 * time.Second,
-		WriteTimeout:  10 * time.Second,
-		IdleTimeout:   30 * time.Second,
-		ShutdownGrace: 5 * time.Second,
+		ReadTimeout:   Duration(10 * time.Second),
+		WriteTimeout:  Duration(10 * time.Second),
+		IdleTimeout:   Duration(30 * time.Second),
+		ShutdownGrace: Duration(5 * time.Second),
 	}
 
 	err := cfg.Validate()
@@ -162,7 +162,7 @@ func TestServerConfig_Validate_ZeroReadTimeout(t *testing.T) {
 
 func TestServerConfig_Validate_NegativeReadTimeout(t *testing.T) {
 	cfg := DefaultServerConfig()
-	cfg.ReadTimeout = -1 * time.Second
+	cfg.ReadTimeout = Duration(-1 * time.Second)
 
 	err := cfg.Validate()
 
@@ -182,7 +182,7 @@ func TestServerConfig_Validate_ZeroWriteTimeout(t *testing.T) {
 
 func TestServerConfig_Validate_NegativeWriteTimeout(t *testing.T) {
 	cfg := DefaultServerConfig()
-	cfg.WriteTimeout = -5 * time.Second
+	cfg.WriteTimeout = Duration(-5 * time.Second)
 
 	err := cfg.Validate()
 
@@ -202,7 +202,7 @@ func TestServerConfig_Validate_ZeroIdleTimeout(t *testing.T) {
 
 func TestServerConfig_Validate_NegativeIdleTimeout(t *testing.T) {
 	cfg := DefaultServerConfig()
-	cfg.IdleTimeout = -1 * time.Minute
+	cfg.IdleTimeout = Duration(-1 * time.Minute)
 
 	err := cfg.Validate()
 
@@ -222,7 +222,7 @@ func TestServerConfig_Validate_ZeroShutdownGrace(t *testing.T) {
 
 func TestServerConfig_Validate_NegativeShutdownGrace(t *testing.T) {
 	cfg := DefaultServerConfig()
-	cfg.ShutdownGrace = -10 * time.Second
+	cfg.ShutdownGrace = Duration(-10 * time.Second)
 
 	err := cfg.Validate()
 
@@ -303,7 +303,7 @@ func TestServerConfig_Validate_EdgeCases(t *testing.T) {
 		},
 		{
 			name:    "minimum valid timeout",
-			modify:  func(c *ServerConfig) { c.ReadTimeout = 1 * time.Nanosecond },
+			modify:  func(c *ServerConfig) { c.ReadTimeout = Duration(1 * time.Nanosecond) },
 			wantErr: false,
 		},
 	}

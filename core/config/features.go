@@ -11,6 +11,7 @@ const (
 	FeatureKratos   = "kratos"
 	FeatureKeto     = "keto"
 	FeatureRedis    = "redis"
+	FeatureRabbitMQ = "rabbitmq"
 	FeatureCORS     = "cors"
 	FeatureGzip     = "gzip"
 )

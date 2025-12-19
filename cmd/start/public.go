@@ -44,7 +44,7 @@ var publicCmd = &cobra.Command{
 		<-ctx.Done()
 
 		fmt.Fprintln(cmd.GetOutput(), "\nShutting down...")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownGrace)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownGrace.Duration())
 		defer cancel()
 
 		return router.Shutdown(shutdownCtx)

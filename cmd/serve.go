@@ -21,7 +21,7 @@ var serveCmd = &cobra.Command{
 			PublicAddr:    cfg.Server.PublicAddr(),
 			ProtectedAddr: cfg.Server.ProtectedAddr(),
 			HiddenAddr:    cfg.Server.HiddenAddr(),
-			ShutdownGrace: cfg.Server.ShutdownGrace,
+			ShutdownGrace: cfg.Server.ShutdownGrace.Duration(),
 		})
 
 		// Setup graceful shutdown
@@ -43,7 +43,7 @@ var serveCmd = &cobra.Command{
 		<-ctx.Done()
 
 		fmt.Fprintln(GetOutput(), "\nShutting down...")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownGrace)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownGrace.Duration())
 		defer cancel()
 
 		return server.Shutdown(shutdownCtx)

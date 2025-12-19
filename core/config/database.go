@@ -2,20 +2,21 @@ package config
 
 import (
 	"fmt"
+	"time"
 )
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Driver          string `yaml:"driver"`
-	Host            string `yaml:"host"`
-	Port            int    `yaml:"port"`
-	Name            string `yaml:"name"`
-	User            string `yaml:"user"`
-	Password        string `yaml:"password"`
-	SSLMode         string `yaml:"ssl_mode"`
-	MaxOpenConns    int    `yaml:"max_open_conns"`
-	MaxIdleConns    int    `yaml:"max_idle_conns"`
-	ConnMaxLifetime int    `yaml:"conn_max_lifetime"` // seconds
+	Driver          string   `yaml:"driver"`
+	Host            string   `yaml:"host"`
+	Port            int      `yaml:"port"`
+	Name            string   `yaml:"name"`
+	User            string   `yaml:"user"`
+	Password        string   `yaml:"password"`
+	SSLMode         string   `yaml:"ssl_mode"`
+	MaxOpenConns    int      `yaml:"max_open_conns"`
+	MaxIdleConns    int      `yaml:"max_idle_conns"`
+	ConnMaxLifetime Duration `yaml:"conn_max_lifetime"` // e.g., "5m", "300s", or 300 (seconds)
 }
 
 // DefaultDatabaseConfig returns default database configuration
@@ -30,7 +31,7 @@ func DefaultDatabaseConfig() DatabaseConfig {
 		SSLMode:         "disable",
 		MaxOpenConns:    25,
 		MaxIdleConns:    5,
-		ConnMaxLifetime: 300,
+		ConnMaxLifetime: Duration(5 * time.Minute),
 	}
 }
 
@@ -57,7 +58,7 @@ func (c *DatabaseConfig) Validate() error {
 	if c.MaxIdleConns < 0 {
 		return fmt.Errorf("database.max_idle_conns must be non-negative")
 	}
-	if c.ConnMaxLifetime < 0 {
+	if c.ConnMaxLifetime.Duration() < 0 {
 		return fmt.Errorf("database.conn_max_lifetime must be non-negative")
 	}
 	return nil

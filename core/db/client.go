@@ -69,7 +69,13 @@ func (c *Client) Initialize(cfg any) error {
 		return fmt.Errorf("database DSN is required")
 	}
 
-	db, err := sqlx.Connect(c.config.Driver, c.config.DSN)
+	// Normalize driver name: "sqlite" -> "sqlite3"
+	driver := c.config.Driver
+	if driver == "sqlite" {
+		driver = "sqlite3"
+	}
+
+	db, err := sqlx.Connect(driver, c.config.DSN)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}

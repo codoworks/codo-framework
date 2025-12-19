@@ -96,6 +96,11 @@ func (r *Runner) Pending(ctx context.Context) (MigrationList, error) {
 
 // Up runs all pending migrations
 func (r *Runner) Up(ctx context.Context) (int, error) {
+	// Ensure migrations table exists
+	if err := r.Initialize(ctx); err != nil {
+		return 0, fmt.Errorf("failed to initialize migrations table: %w", err)
+	}
+
 	pending, err := r.Pending(ctx)
 	if err != nil {
 		return 0, err
@@ -114,6 +119,10 @@ func (r *Runner) Up(ctx context.Context) (int, error) {
 
 // UpTo runs migrations up to and including the specified version
 func (r *Runner) UpTo(ctx context.Context, version string) (int, error) {
+	if err := r.Initialize(ctx); err != nil {
+		return 0, fmt.Errorf("failed to initialize migrations table: %w", err)
+	}
+
 	pending, err := r.Pending(ctx)
 	if err != nil {
 		return 0, err
@@ -135,6 +144,10 @@ func (r *Runner) UpTo(ctx context.Context, version string) (int, error) {
 
 // UpOne runs the next pending migration
 func (r *Runner) UpOne(ctx context.Context) error {
+	if err := r.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to initialize migrations table: %w", err)
+	}
+
 	pending, err := r.Pending(ctx)
 	if err != nil {
 		return err
@@ -149,6 +162,10 @@ func (r *Runner) UpOne(ctx context.Context) error {
 
 // Down reverts the last applied migration
 func (r *Runner) Down(ctx context.Context) error {
+	if err := r.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to initialize migrations table: %w", err)
+	}
+
 	applied, err := r.Applied(ctx)
 	if err != nil {
 		return err
@@ -178,6 +195,10 @@ func (r *Runner) Down(ctx context.Context) error {
 
 // DownTo reverts migrations down to (but not including) the specified version
 func (r *Runner) DownTo(ctx context.Context, version string) (int, error) {
+	if err := r.Initialize(ctx); err != nil {
+		return 0, fmt.Errorf("failed to initialize migrations table: %w", err)
+	}
+
 	applied, err := r.Applied(ctx)
 	if err != nil {
 		return 0, err
@@ -218,6 +239,10 @@ func (r *Runner) DownTo(ctx context.Context, version string) (int, error) {
 
 // Reset reverts all applied migrations
 func (r *Runner) Reset(ctx context.Context) (int, error) {
+	if err := r.Initialize(ctx); err != nil {
+		return 0, fmt.Errorf("failed to initialize migrations table: %w", err)
+	}
+
 	applied, err := r.Applied(ctx)
 	if err != nil {
 		return 0, err
@@ -267,6 +292,10 @@ func (r *Runner) Refresh(ctx context.Context) error {
 
 // Status returns the status of all migrations
 func (r *Runner) Status(ctx context.Context) ([]MigrationStatus, error) {
+	if err := r.Initialize(ctx); err != nil {
+		return nil, fmt.Errorf("failed to initialize migrations table: %w", err)
+	}
+
 	applied, err := r.Applied(ctx)
 	if err != nil {
 		return nil, err
@@ -419,6 +448,10 @@ func splitStatements(sql string) []string {
 
 // Version returns the current schema version (last applied migration)
 func (r *Runner) Version(ctx context.Context) (string, error) {
+	if err := r.Initialize(ctx); err != nil {
+		return "", fmt.Errorf("failed to initialize migrations table: %w", err)
+	}
+
 	query := fmt.Sprintf("SELECT version FROM %s ORDER BY version DESC LIMIT 1", r.tableName)
 
 	var version string

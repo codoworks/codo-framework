@@ -18,7 +18,7 @@ func TestNewWithDefaults(t *testing.T) {
 	assert.Equal(t, 8081, cfg.Server.PublicPort)
 	assert.Equal(t, 8080, cfg.Server.ProtectedPort)
 	assert.Equal(t, 8079, cfg.Server.HiddenPort)
-	assert.Equal(t, 30*time.Second, cfg.Server.ReadTimeout)
+	assert.Equal(t, 30*time.Second, cfg.Server.ReadTimeout.Duration())
 	assert.Equal(t, "postgres", cfg.Database.Driver)
 	assert.Equal(t, "localhost", cfg.Database.Host)
 	assert.Equal(t, 5432, cfg.Database.Port)

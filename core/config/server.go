@@ -7,13 +7,13 @@ import (
 
 // ServerConfig holds HTTP server configuration
 type ServerConfig struct {
-	PublicPort    int           `yaml:"public_port"`
-	ProtectedPort int           `yaml:"protected_port"`
-	HiddenPort    int           `yaml:"hidden_port"`
-	ReadTimeout   time.Duration `yaml:"read_timeout"`
-	WriteTimeout  time.Duration `yaml:"write_timeout"`
-	IdleTimeout   time.Duration `yaml:"idle_timeout"`
-	ShutdownGrace time.Duration `yaml:"shutdown_grace"`
+	PublicPort    int      `yaml:"public_port"`
+	ProtectedPort int      `yaml:"protected_port"`
+	HiddenPort    int      `yaml:"hidden_port"`
+	ReadTimeout   Duration `yaml:"read_timeout"`   // e.g., "30s", "1m"
+	WriteTimeout  Duration `yaml:"write_timeout"`  // e.g., "30s", "1m"
+	IdleTimeout   Duration `yaml:"idle_timeout"`   // e.g., "60s", "1m"
+	ShutdownGrace Duration `yaml:"shutdown_grace"` // e.g., "20s", "30s"
 }
 
 // DefaultServerConfig returns default server configuration
@@ -22,10 +22,10 @@ func DefaultServerConfig() ServerConfig {
 		PublicPort:    8081,
 		ProtectedPort: 8080,
 		HiddenPort:    8079,
-		ReadTimeout:   30 * time.Second,
-		WriteTimeout:  30 * time.Second,
-		IdleTimeout:   60 * time.Second,
-		ShutdownGrace: 20 * time.Second,
+		ReadTimeout:   Duration(30 * time.Second),
+		WriteTimeout:  Duration(30 * time.Second),
+		IdleTimeout:   Duration(60 * time.Second),
+		ShutdownGrace: Duration(20 * time.Second),
 	}
 }
 
@@ -50,16 +50,16 @@ func (c *ServerConfig) Validate() error {
 	if c.ProtectedPort == c.HiddenPort {
 		return fmt.Errorf("server ports must be unique: protected_port and hidden_port are both %d", c.ProtectedPort)
 	}
-	if c.ReadTimeout <= 0 {
+	if c.ReadTimeout.Duration() <= 0 {
 		return fmt.Errorf("server.read_timeout must be positive")
 	}
-	if c.WriteTimeout <= 0 {
+	if c.WriteTimeout.Duration() <= 0 {
 		return fmt.Errorf("server.write_timeout must be positive")
 	}
-	if c.IdleTimeout <= 0 {
+	if c.IdleTimeout.Duration() <= 0 {
 		return fmt.Errorf("server.idle_timeout must be positive")
 	}
-	if c.ShutdownGrace <= 0 {
+	if c.ShutdownGrace.Duration() <= 0 {
 		return fmt.Errorf("server.shutdown_grace must be positive")
 	}
 	return nil

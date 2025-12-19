@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ func TestDefaultDatabaseConfig(t *testing.T) {
 	assert.Equal(t, "disable", cfg.SSLMode)
 	assert.Equal(t, 25, cfg.MaxOpenConns)
 	assert.Equal(t, 5, cfg.MaxIdleConns)
-	assert.Equal(t, 300, cfg.ConnMaxLifetime)
+	assert.Equal(t, 5*time.Minute, cfg.ConnMaxLifetime.Duration())
 }
 
 func TestDatabaseConfig_Validate_Valid(t *testing.T) {
@@ -197,7 +198,7 @@ func TestDatabaseConfig_Validate_ZeroMaxIdleConns(t *testing.T) {
 
 func TestDatabaseConfig_Validate_InvalidConnMaxLifetime_Negative(t *testing.T) {
 	cfg := DefaultDatabaseConfig()
-	cfg.ConnMaxLifetime = -1
+	cfg.ConnMaxLifetime = Duration(-1 * time.Second)
 
 	err := cfg.Validate()
 
@@ -207,7 +208,7 @@ func TestDatabaseConfig_Validate_InvalidConnMaxLifetime_Negative(t *testing.T) {
 
 func TestDatabaseConfig_Validate_ZeroConnMaxLifetime(t *testing.T) {
 	cfg := DefaultDatabaseConfig()
-	cfg.ConnMaxLifetime = 0
+	cfg.ConnMaxLifetime = Duration(0)
 
 	err := cfg.Validate()
 
