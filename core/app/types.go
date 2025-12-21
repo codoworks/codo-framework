@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sync"
 
 	"github.com/codoworks/codo-framework/core/config"
 	"github.com/codoworks/codo-framework/core/db/migrations"
@@ -89,6 +90,32 @@ type BootstrapOptions struct {
 
 	// WorkerRegistrar registers background workers (required for WorkerDaemon mode)
 	WorkerRegistrar WorkerRegistrar
+}
+
+// Initializer is a function that returns bootstrap options for the consumer application.
+// The consumer app registers this in their init() function.
+// The Mode field will be set by the CLI command, so consumers should not set it.
+type Initializer func(*config.Config) (BootstrapOptions, error)
+
+var (
+	registeredInitializer Initializer
+	initMu                sync.RWMutex
+)
+
+// RegisterInitializer registers the consumer application's initializer function.
+// This should be called in the consumer's init() function.
+func RegisterInitializer(init Initializer) {
+	initMu.Lock()
+	defer initMu.Unlock()
+	registeredInitializer = init
+}
+
+// GetInitializer returns the registered initializer function.
+// This is used internally by the framework CLI commands.
+func GetInitializer() Initializer {
+	initMu.RLock()
+	defer initMu.RUnlock()
+	return registeredInitializer
 }
 
 // BaseApp is the base interface for all application types

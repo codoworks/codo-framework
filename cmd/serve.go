@@ -17,12 +17,21 @@ var serveCmd = &cobra.Command{
 	Short: "Start all API servers",
 	Long:  "Start the public, protected, and hidden API servers concurrently",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Bootstrap in HTTPServer mode (creates all 3 routers with middleware)
-		application, err := app.Bootstrap(cfg, app.BootstrapOptions{
-			Mode: app.HTTPServer,
-			// HandlerRegistrar: nil, // Handlers auto-registered via init()
-			// MigrationAdder: nil,   // Consumers can provide via app.RegisterMigrations()
-		})
+		// Get bootstrap options from registered initializer
+		var opts app.BootstrapOptions
+		if initializer := app.GetInitializer(); initializer != nil {
+			var err error
+			opts, err = initializer(cfg)
+			if err != nil {
+				return fmt.Errorf("initialization failed: %w", err)
+			}
+		}
+
+		// Set mode for this command
+		opts.Mode = app.HTTPServer
+
+		// Bootstrap application
+		application, err := app.Bootstrap(cfg, opts)
 		if err != nil {
 			return fmt.Errorf("bootstrap failed: %w", err)
 		}

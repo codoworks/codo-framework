@@ -21,12 +21,23 @@ var routesCmd = &cobra.Command{
 	Short: "Show registered routes",
 	Long:  "Display all registered HTTP handlers and their routes",
 	RunE: func(c *cobra.Command, args []string) error {
-		// Bootstrap in RouteInspector mode (creates server but doesn't start it)
-		application, err := app.Bootstrap(cmd.GetConfig(), app.BootstrapOptions{
-			Mode: app.RouteInspector,
-			// HandlerRegistrar: nil, // Handlers auto-registered via init()
-			// MigrationAdder: nil,   // No migrations needed for route inspection
-		})
+		cfg := cmd.GetConfig()
+
+		// Get bootstrap options from registered initializer
+		var opts app.BootstrapOptions
+		if initializer := app.GetInitializer(); initializer != nil {
+			var err error
+			opts, err = initializer(cfg)
+			if err != nil {
+				return fmt.Errorf("initialization failed: %w", err)
+			}
+		}
+
+		// Set mode for this command
+		opts.Mode = app.RouteInspector
+
+		// Bootstrap application (creates server but doesn't start it)
+		application, err := app.Bootstrap(cfg, opts)
 		if err != nil {
 			return fmt.Errorf("bootstrap failed: %w", err)
 		}

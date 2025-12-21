@@ -24,14 +24,23 @@ var hiddenCmd = &cobra.Command{
 			return fmt.Errorf("configuration not loaded")
 		}
 
-		// Bootstrap in HTTPRouter mode (creates only hidden router with middleware)
+		// Get bootstrap options from registered initializer
+		var opts app.BootstrapOptions
+		if initializer := app.GetInitializer(); initializer != nil {
+			var err error
+			opts, err = initializer(cfg)
+			if err != nil {
+				return fmt.Errorf("initialization failed: %w", err)
+			}
+		}
+
+		// Set mode and scope for this command
 		scope := http.ScopeHidden
-		application, err := app.Bootstrap(cfg, app.BootstrapOptions{
-			Mode:        app.HTTPRouter,
-			RouterScope: &scope,
-			// HandlerRegistrar: nil, // Handlers auto-registered via init()
-			// MigrationAdder: nil,   // Consumers can provide via app.RegisterMigrations()
-		})
+		opts.Mode = app.HTTPRouter
+		opts.RouterScope = &scope
+
+		// Bootstrap application
+		application, err := app.Bootstrap(cfg, opts)
 		if err != nil {
 			return fmt.Errorf("bootstrap failed: %w", err)
 		}
