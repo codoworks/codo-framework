@@ -5,13 +5,14 @@ import "fmt"
 
 // Config holds all framework configuration
 type Config struct {
-	Service  ServiceConfig  `yaml:"service"`
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Auth     AuthConfig     `yaml:"auth"`
-	RabbitMQ RabbitMQConfig `yaml:"rabbitmq"`
-	Features FeaturesConfig `yaml:"features"`
-	DevMode  bool           `yaml:"-"` // Not loaded from YAML
+	Service    ServiceConfig    `yaml:"service"`
+	Server     ServerConfig     `yaml:"server"`
+	Database   DatabaseConfig   `yaml:"database"`
+	Auth       AuthConfig       `yaml:"auth"`
+	RabbitMQ   RabbitMQConfig   `yaml:"rabbitmq"`
+	Features   FeaturesConfig   `yaml:"features"`
+	Middleware MiddlewareConfig `yaml:"middleware"`
+	DevMode    bool             `yaml:"-"` // Not loaded from YAML
 
 	// Extensions captures any additional app-specific config sections
 	// The ,inline tag merges unknown fields into this map instead of discarding them
@@ -27,6 +28,7 @@ func NewWithDefaults() *Config {
 		Auth:       DefaultAuthConfig(),
 		RabbitMQ:   DefaultRabbitMQConfig(),
 		Features:   DefaultFeaturesConfig(),
+		Middleware: DefaultMiddlewareConfig(),
 		DevMode:    false,
 		Extensions: make(map[string]interface{}),
 	}
@@ -75,11 +77,12 @@ func (c *Config) IsProd() bool {
 // Clone creates a deep copy of the configuration
 func (c *Config) Clone() *Config {
 	clone := &Config{
-		Service:  c.Service,
-		Server:   c.Server,
-		Database: c.Database,
-		Auth:     c.Auth,
-		RabbitMQ: c.RabbitMQ,
+		Service:    c.Service,
+		Server:     c.Server,
+		Database:   c.Database,
+		Auth:       c.Auth,
+		RabbitMQ:   c.RabbitMQ,
+		Middleware: c.Middleware,
 		Features: FeaturesConfig{
 			DisabledFeatures: make([]string, len(c.Features.DisabledFeatures)),
 		},

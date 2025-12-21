@@ -6,21 +6,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/codoworks/codo-framework/core/http"
+	"github.com/codoworks/codo-framework/core/config"
 	"github.com/codoworks/codo-framework/core/metadata"
 )
 
-// mockApp implements App interface without MetadataProvider
+// mockApp implements BaseApp interface without MetadataProvider
 type mockApp struct{}
 
-func (m *mockApp) Server() *http.Server             { return nil }
+func (m *mockApp) Config() *config.Config            { return nil }
 func (m *mockApp) Shutdown(ctx context.Context) error { return nil }
+func (m *mockApp) Mode() AppMode                      { return HTTPServer }
 
-// mockAppWithMetadata implements both App and MetadataProvider interfaces
+// mockAppWithMetadata implements both BaseApp and MetadataProvider interfaces
 type mockAppWithMetadata struct{}
 
-func (m *mockAppWithMetadata) Server() *http.Server             { return nil }
+func (m *mockAppWithMetadata) Config() *config.Config            { return nil }
 func (m *mockAppWithMetadata) Shutdown(ctx context.Context) error { return nil }
+func (m *mockAppWithMetadata) Mode() AppMode                      { return HTTPServer }
 func (m *mockAppWithMetadata) Metadata() metadata.Metadata {
 	return metadata.Info{
 		AppName:  "myapp",

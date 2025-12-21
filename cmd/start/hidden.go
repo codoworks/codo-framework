@@ -24,21 +24,28 @@ var hiddenCmd = &cobra.Command{
 			return fmt.Errorf("configuration not loaded")
 		}
 
-		// Initialize app to get metadata
-		application, err := app.Initialize(cfg)
+		// Bootstrap in HTTPRouter mode (creates only hidden router with middleware)
+		scope := http.ScopeHidden
+		application, err := app.Bootstrap(cfg, app.BootstrapOptions{
+			Mode:        app.HTTPRouter,
+			RouterScope: &scope,
+			// HandlerRegistrar: nil, // Handlers auto-registered via init()
+			// MigrationAdder: nil,   // Consumers can provide via app.RegisterMigrations()
+		})
 		if err != nil {
-			return fmt.Errorf("failed to initialize app: %w", err)
+			return fmt.Errorf("bootstrap failed: %w", err)
 		}
 
 		// Auto-register CLI metadata (uses app's or framework defaults)
 		meta := app.GetMetadata(application)
 		cmd.SetAppInfo(meta.Name(), meta.Short(), meta.Long())
 
-		router := http.NewRouter(http.ScopeHidden, cfg.Server.HiddenAddr())
-
-		if err := router.RegisterHandlers(); err != nil {
-			return fmt.Errorf("failed to register handlers: %w", err)
+		// Type assert to SingleRouterApp and get router
+		routerApp, ok := application.(app.SingleRouterApp)
+		if !ok {
+			return fmt.Errorf("expected SingleRouterApp, got %T", application)
 		}
+		router := routerApp.Router()
 
 		// Setup graceful shutdown
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -58,7 +65,8 @@ var hiddenCmd = &cobra.Command{
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownGrace.Duration())
 		defer cancel()
 
-		return router.Shutdown(shutdownCtx)
+		// Shutdown app (which handles router + clients)
+		return application.Shutdown(shutdownCtx)
 	},
 }
 
