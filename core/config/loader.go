@@ -101,12 +101,6 @@ func (c *Config) applyEnvOverrides() error {
 	v.AutomaticEnv()
 
 	// Service
-	if val := v.GetString("SERVICE_NAME"); val != "" {
-		c.Service.Name = val
-	}
-	if val := v.GetString("SERVICE_VERSION"); val != "" {
-		c.Service.Version = val
-	}
 	if val := v.GetString("SERVICE_ENVIRONMENT"); val != "" {
 		c.Service.Environment = val
 	}

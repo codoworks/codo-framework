@@ -17,14 +17,17 @@ var (
 	verbose bool
 	cfg     *config.Config
 	version string
+	appName  string = "codo"
+	appShort string = "Codo Framework CLI"
+	appLong  string = "Codo Framework - A production-ready Go backend framework"
 	output  io.Writer = os.Stdout
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "codo",
-	Short: "Codo Framework CLI",
-	Long:  "Codo Framework - A production-ready Go backend framework",
+	Use:   appName,
+	Short: appShort,
+	Long:  appLong,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip config loading for certain commands
 		if cmd.Name() == "version" || cmd.Name() == "help" {
@@ -102,6 +105,46 @@ func GetVersion() string {
 	return version
 }
 
+// SetAppName sets the application name (used in CLI usage text)
+func SetAppName(name string) {
+	appName = name
+	rootCmd.Use = name
+}
+
+// SetAppShort sets the short description shown in help
+func SetAppShort(short string) {
+	appShort = short
+	rootCmd.Short = short
+}
+
+// SetAppLong sets the long description shown in help
+func SetAppLong(long string) {
+	appLong = long
+	rootCmd.Long = long
+}
+
+// SetAppInfo is a convenience function to set all app metadata at once
+func SetAppInfo(name, short, long string) {
+	SetAppName(name)
+	SetAppShort(short)
+	SetAppLong(long)
+}
+
+// GetAppName returns the application name
+func GetAppName() string {
+	return appName
+}
+
+// GetAppShort returns the short description
+func GetAppShort() string {
+	return appShort
+}
+
+// GetAppLong returns the long description
+func GetAppLong() string {
+	return appLong
+}
+
 // GetConfig returns the loaded configuration
 func GetConfig() *config.Config {
 	return cfg
@@ -167,6 +210,12 @@ func ResetFlags() {
 	devMode = false
 	verbose = false
 	cfg = nil
+	appName = "codo"
+	appShort = "Codo Framework CLI"
+	appLong = "Codo Framework - A production-ready Go backend framework"
+	rootCmd.Use = appName
+	rootCmd.Short = appShort
+	rootCmd.Long = appLong
 }
 
 func init() {

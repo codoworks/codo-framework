@@ -80,6 +80,28 @@ func (s *Server) Router(scope RouterScope) *Router {
 	}
 }
 
+// PrepareRoutes registers handlers on all routers without starting the servers.
+// This is useful for commands like `info routes` that need to introspect routes
+// without actually starting the HTTP listeners.
+func (s *Server) PrepareRoutes() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.public.RegisterHandlers(); err != nil {
+		return fmt.Errorf("failed to register public handlers: %w", err)
+	}
+
+	if err := s.protected.RegisterHandlers(); err != nil {
+		return fmt.Errorf("failed to register protected handlers: %w", err)
+	}
+
+	if err := s.hidden.RegisterHandlers(); err != nil {
+		return fmt.Errorf("failed to register hidden handlers: %w", err)
+	}
+
+	return nil
+}
+
 // Use adds middleware to all routers.
 func (s *Server) Use(middleware ...echo.MiddlewareFunc) {
 	s.public.Use(middleware...)

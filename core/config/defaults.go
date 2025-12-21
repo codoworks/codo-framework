@@ -12,12 +12,6 @@ func (c *Config) ApplyDefaults() {
 	defaults := NewWithDefaults()
 
 	// Service defaults
-	if c.Service.Name == "" {
-		c.Service.Name = defaults.Service.Name
-	}
-	if c.Service.Version == "" {
-		c.Service.Version = defaults.Service.Version
-	}
 	if c.Service.Environment == "" {
 		c.Service.Environment = defaults.Service.Environment
 	}

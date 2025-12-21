@@ -8,6 +8,7 @@ import (
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
 	Driver          string   `yaml:"driver"`
+	DSNString       string   `yaml:"dsn"` // Direct connection string (takes precedence if set)
 	Host            string   `yaml:"host"`
 	Port            int      `yaml:"port"`
 	Name            string   `yaml:"name"`
@@ -66,6 +67,12 @@ func (c *DatabaseConfig) Validate() error {
 
 // DSN returns the database connection string
 func (c *DatabaseConfig) DSN() string {
+	// If DSN is explicitly set, use it (takes precedence)
+	if c.DSNString != "" {
+		return c.DSNString
+	}
+
+	// Otherwise, build DSN from individual fields
 	switch c.Driver {
 	case "postgres":
 		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",

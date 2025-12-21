@@ -1,6 +1,8 @@
 // Package config provides configuration management for the Codo Framework.
 package config
 
+import "fmt"
+
 // Config holds all framework configuration
 type Config struct {
 	Service  ServiceConfig  `yaml:"service"`
@@ -10,18 +12,23 @@ type Config struct {
 	RabbitMQ RabbitMQConfig `yaml:"rabbitmq"`
 	Features FeaturesConfig `yaml:"features"`
 	DevMode  bool           `yaml:"-"` // Not loaded from YAML
+
+	// Extensions captures any additional app-specific config sections
+	// The ,inline tag merges unknown fields into this map instead of discarding them
+	Extensions map[string]interface{} `yaml:",inline"`
 }
 
 // NewWithDefaults creates a new Config with all default values
 func NewWithDefaults() *Config {
 	return &Config{
-		Service:  DefaultServiceConfig(),
-		Server:   DefaultServerConfig(),
-		Database: DefaultDatabaseConfig(),
-		Auth:     DefaultAuthConfig(),
-		RabbitMQ: DefaultRabbitMQConfig(),
-		Features: DefaultFeaturesConfig(),
-		DevMode:  false,
+		Service:    DefaultServiceConfig(),
+		Server:     DefaultServerConfig(),
+		Database:   DefaultDatabaseConfig(),
+		Auth:       DefaultAuthConfig(),
+		RabbitMQ:   DefaultRabbitMQConfig(),
+		Features:   DefaultFeaturesConfig(),
+		DevMode:    false,
+		Extensions: make(map[string]interface{}),
 	}
 }
 
@@ -44,12 +51,19 @@ func (c *Config) Validate() error {
 	if err := c.Auth.Validate(); err != nil {
 		return err
 	}
-	// Only validate RabbitMQ if enabled
-	if c.RabbitMQ.IsEnabled() {
+
+	// Validate RabbitMQ based on feature toggle
+	if c.Features.IsEnabled(FeatureRabbitMQ) {
+		// Feature is enabled - config must be valid
+		if !c.RabbitMQ.IsEnabled() {
+			return fmt.Errorf("rabbitmq feature is enabled but no configuration provided (missing URL or host)")
+		}
 		if err := c.RabbitMQ.Validate(); err != nil {
 			return err
 		}
 	}
+	// Note: Warning for config-set-but-disabled case is logged in bootstrap
+
 	return nil
 }
 
@@ -69,8 +83,15 @@ func (c *Config) Clone() *Config {
 		Features: FeaturesConfig{
 			DisabledFeatures: make([]string, len(c.Features.DisabledFeatures)),
 		},
-		DevMode: c.DevMode,
+		DevMode:    c.DevMode,
+		Extensions: make(map[string]interface{}),
 	}
 	copy(clone.Features.DisabledFeatures, c.Features.DisabledFeatures)
+
+	// Deep copy Extensions map
+	for k, v := range c.Extensions {
+		clone.Extensions[k] = v
+	}
+
 	return clone
 }

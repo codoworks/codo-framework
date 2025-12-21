@@ -11,7 +11,7 @@ func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
 	assert.NotNil(t, cfg)
-	assert.Equal(t, "codo-app", cfg.Service.Name)
+	assert.Equal(t, "development", cfg.Service.Environment)
 	assert.Equal(t, 8081, cfg.Server.PublicPort)
 	assert.Equal(t, "postgres", cfg.Database.Driver)
 }
@@ -33,8 +33,6 @@ func TestConfig_ApplyDefaults_Empty(t *testing.T) {
 
 	cfg.ApplyDefaults()
 
-	assert.Equal(t, "codo-app", cfg.Service.Name)
-	assert.Equal(t, "0.0.0", cfg.Service.Version)
 	assert.Equal(t, "development", cfg.Service.Environment)
 	assert.Equal(t, 8081, cfg.Server.PublicPort)
 	assert.Equal(t, 8080, cfg.Server.ProtectedPort)
@@ -47,7 +45,7 @@ func TestConfig_ApplyDefaults_Empty(t *testing.T) {
 func TestConfig_ApplyDefaults_Partial(t *testing.T) {
 	cfg := &Config{
 		Service: ServiceConfig{
-			Name: "my-app",
+			Environment: "production",
 		},
 		Server: ServerConfig{
 			PublicPort: 9000,
@@ -57,11 +55,10 @@ func TestConfig_ApplyDefaults_Partial(t *testing.T) {
 	cfg.ApplyDefaults()
 
 	// Provided values should be preserved
-	assert.Equal(t, "my-app", cfg.Service.Name)
+	assert.Equal(t, "production", cfg.Service.Environment)
 	assert.Equal(t, 9000, cfg.Server.PublicPort)
 
 	// Missing values should get defaults
-	assert.Equal(t, "0.0.0", cfg.Service.Version)
 	assert.Equal(t, 8080, cfg.Server.ProtectedPort)
 	assert.Equal(t, "postgres", cfg.Database.Driver)
 }
@@ -69,8 +66,6 @@ func TestConfig_ApplyDefaults_Partial(t *testing.T) {
 func TestConfig_ApplyDefaults_PreservesNonZeroValues(t *testing.T) {
 	cfg := &Config{
 		Service: ServiceConfig{
-			Name:        "custom-app",
-			Version:     "1.0.0",
 			Environment: "production",
 		},
 		Server: ServerConfig{
@@ -105,8 +100,6 @@ func TestConfig_ApplyDefaults_PreservesNonZeroValues(t *testing.T) {
 	cfg.ApplyDefaults()
 
 	// All values should be preserved
-	assert.Equal(t, "custom-app", cfg.Service.Name)
-	assert.Equal(t, "1.0.0", cfg.Service.Version)
 	assert.Equal(t, "production", cfg.Service.Environment)
 	assert.Equal(t, 3000, cfg.Server.PublicPort)
 	assert.Equal(t, 3001, cfg.Server.ProtectedPort)
@@ -190,7 +183,7 @@ func TestConfig_ApplyDefaults_DevModeNotChanged(t *testing.T) {
 func TestConfig_ApplyDefaults_CalledMultipleTimes(t *testing.T) {
 	cfg := &Config{
 		Service: ServiceConfig{
-			Name: "my-app",
+			Environment: "production",
 		},
 	}
 
@@ -199,6 +192,5 @@ func TestConfig_ApplyDefaults_CalledMultipleTimes(t *testing.T) {
 	cfg.ApplyDefaults()
 
 	// Should be idempotent
-	assert.Equal(t, "my-app", cfg.Service.Name)
-	assert.Equal(t, "0.0.0", cfg.Service.Version)
+	assert.Equal(t, "production", cfg.Service.Environment)
 }

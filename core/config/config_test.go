@@ -12,8 +12,6 @@ func TestNewWithDefaults(t *testing.T) {
 	cfg := NewWithDefaults()
 
 	assert.NotNil(t, cfg)
-	assert.Equal(t, "codo-app", cfg.Service.Name)
-	assert.Equal(t, "0.0.0", cfg.Service.Version)
 	assert.Equal(t, "development", cfg.Service.Environment)
 	assert.Equal(t, 8081, cfg.Server.PublicPort)
 	assert.Equal(t, 8080, cfg.Server.ProtectedPort)
@@ -36,15 +34,6 @@ func TestConfig_Validate_Valid(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestConfig_Validate_Invalid_Service(t *testing.T) {
-	cfg := NewWithDefaults()
-	cfg.Service.Name = ""
-
-	err := cfg.Validate()
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service.name is required")
-}
 
 func TestConfig_Validate_Invalid_Server(t *testing.T) {
 	cfg := NewWithDefaults()
@@ -94,23 +83,23 @@ func TestConfig_IsProd(t *testing.T) {
 
 func TestConfig_Clone(t *testing.T) {
 	cfg := NewWithDefaults()
-	cfg.Service.Name = "original"
+	cfg.Service.Environment = "production"
 	cfg.DevMode = true
 	cfg.Features.Disable("database")
 
 	clone := cfg.Clone()
 
 	// Clone should have same values
-	assert.Equal(t, "original", clone.Service.Name)
+	assert.Equal(t, "production", clone.Service.Environment)
 	assert.True(t, clone.DevMode)
 	assert.False(t, clone.Features.IsEnabled("database"))
 
 	// Modifying clone should not affect original
-	clone.Service.Name = "modified"
+	clone.Service.Environment = "staging"
 	clone.DevMode = false
 	clone.Features.Enable("database")
 
-	assert.Equal(t, "original", cfg.Service.Name)
+	assert.Equal(t, "production", cfg.Service.Environment)
 	assert.True(t, cfg.DevMode)
 	assert.False(t, cfg.Features.IsEnabled("database"))
 }
@@ -174,12 +163,6 @@ func TestConfig_Validate_TableDriven(t *testing.T) {
 			errMsg:  "database.driver",
 		},
 		{
-			name:    "missing service name",
-			modify:  func(c *Config) { c.Service.Name = "" },
-			wantErr: true,
-			errMsg:  "service.name",
-		},
-		{
 			name:    "missing session cookie",
 			modify:  func(c *Config) { c.Auth.SessionCookie = "" },
 			wantErr: true,
@@ -222,8 +205,6 @@ func TestConfig_FullIntegration(t *testing.T) {
 	cfg := NewWithDefaults()
 
 	// Modify various settings
-	cfg.Service.Name = "my-api"
-	cfg.Service.Version = "2.0.0"
 	cfg.Service.Environment = "production"
 	cfg.Server.PublicPort = 3000
 	cfg.Server.ProtectedPort = 3001
@@ -241,7 +222,7 @@ func TestConfig_FullIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check values
-	assert.Equal(t, "my-api", cfg.Service.Name)
+	assert.Equal(t, "production", cfg.Service.Environment)
 	assert.Equal(t, 3000, cfg.Server.PublicPort)
 	assert.Equal(t, "mysql", cfg.Database.Driver)
 	assert.False(t, cfg.Features.IsEnabled("redis"))
@@ -250,7 +231,7 @@ func TestConfig_FullIntegration(t *testing.T) {
 
 	// Clone and verify
 	clone := cfg.Clone()
-	assert.Equal(t, cfg.Service.Name, clone.Service.Name)
+	assert.Equal(t, cfg.Service.Environment, clone.Service.Environment)
 	assert.Equal(t, cfg.DevMode, clone.DevMode)
 }
 
@@ -258,23 +239,22 @@ func TestNewWithDefaults_MultipleCallsIndependent(t *testing.T) {
 	cfg1 := NewWithDefaults()
 	cfg2 := NewWithDefaults()
 
-	cfg1.Service.Name = "modified"
+	cfg1.Service.Environment = "production"
 
-	assert.Equal(t, "modified", cfg1.Service.Name)
-	assert.Equal(t, "codo-app", cfg2.Service.Name)
+	assert.Equal(t, "production", cfg1.Service.Environment)
+	assert.Equal(t, "development", cfg2.Service.Environment)
 }
 
 func TestConfig_ValidateOrder(t *testing.T) {
 	// Test that validation runs in a specific order
 	// Service first, then Server, then Database, then Auth
 	cfg := NewWithDefaults()
-	cfg.Service.Name = ""       // Will fail first
-	cfg.Server.PublicPort = 0   // Would fail second
-	cfg.Database.Name = ""      // Would fail third
-	cfg.Auth.SessionCookie = "" // Would fail fourth
+	cfg.Server.PublicPort = 0   // Will fail first
+	cfg.Database.Name = ""      // Would fail second
+	cfg.Auth.SessionCookie = "" // Would fail third
 
 	err := cfg.Validate()
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service.name") // Should be the first error
+	assert.Contains(t, err.Error(), "server.public_port") // Should be the first error
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/codoworks/codo-framework/core/auth"
-	"github.com/codoworks/codo-framework/core/clients/keto"
+	"github.com/codoworks/codo-framework/clients/keto"
 )
 
 func setupAuthzTest(t *testing.T, mockKeto *keto.MockClient, objectFunc func(c echo.Context) string) (*echo.Echo, echo.MiddlewareFunc) {

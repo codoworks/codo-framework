@@ -8,7 +8,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/codoworks/codo-framework/core/auth"
-	"github.com/codoworks/codo-framework/core/clients/kratos"
+	"github.com/codoworks/codo-framework/clients/kratos"
 )
 
 // SessionValidator validates sessions

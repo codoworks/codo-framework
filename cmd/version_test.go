@@ -27,7 +27,7 @@ func TestVersionCmd(t *testing.T) {
 	err := Execute()
 	require.NoError(t, err)
 
-	assert.Contains(t, output.String(), "Codo Framework 1.0.0-test")
+	assert.Contains(t, output.String(), "codo 1.0.0-test")
 	assert.Contains(t, output.String(), "Go version:")
 	assert.Contains(t, output.String(), "OS/Arch:")
 }
@@ -54,6 +54,7 @@ func TestVersionCmd_JSON(t *testing.T) {
 	err = json.Unmarshal(output.Bytes(), &info)
 	require.NoError(t, err)
 
+	assert.Equal(t, "codo", info.AppName)
 	assert.Equal(t, "2.0.0-json", info.Version)
 	assert.NotEmpty(t, info.GoVersion)
 	assert.NotEmpty(t, info.OS)
@@ -62,12 +63,14 @@ func TestVersionCmd_JSON(t *testing.T) {
 
 func TestVersionInfo(t *testing.T) {
 	info := VersionInfo{
+		AppName:   "test-app",
 		Version:   "1.0.0",
 		GoVersion: "go1.21.0",
 		OS:        "linux",
 		Arch:      "amd64",
 	}
 
+	assert.Equal(t, "test-app", info.AppName)
 	assert.Equal(t, "1.0.0", info.Version)
 	assert.Equal(t, "go1.21.0", info.GoVersion)
 	assert.Equal(t, "linux", info.OS)

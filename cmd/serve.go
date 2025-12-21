@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codoworks/codo-framework/core/http"
+	"github.com/codoworks/codo-framework/core/app"
 )
 
 var serveCmd = &cobra.Command{
@@ -17,12 +17,18 @@ var serveCmd = &cobra.Command{
 	Short: "Start all API servers",
 	Long:  "Start the public, protected, and hidden API servers concurrently",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		server := http.NewServer(&http.ServerConfig{
-			PublicAddr:    cfg.Server.PublicAddr(),
-			ProtectedAddr: cfg.Server.ProtectedAddr(),
-			HiddenAddr:    cfg.Server.HiddenAddr(),
-			ShutdownGrace: cfg.Server.ShutdownGrace.Duration(),
-		})
+		// Initialize app (calls consumer's registered initializer)
+		application, err := app.Initialize(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to initialize app: %w", err)
+		}
+
+		// Auto-register CLI metadata (uses app's or framework defaults)
+		meta := app.GetMetadata(application)
+		SetAppInfo(meta.Name(), meta.Short(), meta.Long())
+
+		// Get server from app
+		server := application.Server()
 
 		// Setup graceful shutdown
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -46,7 +52,8 @@ var serveCmd = &cobra.Command{
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownGrace.Duration())
 		defer cancel()
 
-		return server.Shutdown(shutdownCtx)
+		// Shutdown app (which handles server + clients)
+		return application.Shutdown(shutdownCtx)
 	},
 }
 

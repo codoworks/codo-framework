@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -238,4 +239,116 @@ func TestResetFlags(t *testing.T) {
 	assert.False(t, devMode)
 	assert.False(t, verbose)
 	assert.Nil(t, cfg)
+	// Also verify app metadata is reset
+	assert.Equal(t, "codo", appName)
+	assert.Equal(t, "Codo Framework CLI", appShort)
+	assert.Equal(t, "Codo Framework - A production-ready Go backend framework", appLong)
+}
+
+func TestSetAppName(t *testing.T) {
+	ResetFlags()
+	defer ResetFlags()
+
+	SetAppName("test-app")
+	assert.Equal(t, "test-app", GetAppName())
+	assert.Equal(t, "test-app", rootCmd.Use)
+}
+
+func TestSetAppShort(t *testing.T) {
+	ResetFlags()
+	defer ResetFlags()
+
+	SetAppShort("Test App CLI")
+	assert.Equal(t, "Test App CLI", GetAppShort())
+	assert.Equal(t, "Test App CLI", rootCmd.Short)
+}
+
+func TestSetAppLong(t *testing.T) {
+	ResetFlags()
+	defer ResetFlags()
+
+	SetAppLong("Test App - A test application")
+	assert.Equal(t, "Test App - A test application", GetAppLong())
+	assert.Equal(t, "Test App - A test application", rootCmd.Long)
+}
+
+func TestSetAppInfo(t *testing.T) {
+	ResetFlags()
+	defer ResetFlags()
+
+	SetAppInfo("myapp", "My App CLI", "My App - Does amazing things")
+	assert.Equal(t, "myapp", GetAppName())
+	assert.Equal(t, "My App CLI", GetAppShort())
+	assert.Equal(t, "My App - Does amazing things", GetAppLong())
+	assert.Equal(t, "myapp", rootCmd.Use)
+	assert.Equal(t, "My App CLI", rootCmd.Short)
+	assert.Equal(t, "My App - Does amazing things", rootCmd.Long)
+}
+
+func TestRootCmd_CustomAppName(t *testing.T) {
+	ResetFlags()
+	defer ResetFlags()
+
+	SetAppName("custom-app")
+
+	output := new(bytes.Buffer)
+	SetOutput(output)
+	defer ResetOutput()
+
+	rootCmd.SetArgs([]string{"--help"})
+	err := Execute()
+	require.NoError(t, err)
+
+	assert.Contains(t, output.String(), "custom-app")
+	assert.Contains(t, output.String(), "Usage:\n  custom-app [command]")
+}
+
+func TestVersionCmd_CustomAppName(t *testing.T) {
+	ResetFlags()
+	ResetVersionFlags()
+	defer func() {
+		ResetFlags()
+		ResetVersionFlags()
+	}()
+
+	SetVersion("1.0.0-test")
+	SetAppName("my-app")
+
+	output := new(bytes.Buffer)
+	SetOutput(output)
+	defer ResetOutput()
+
+	rootCmd.SetArgs([]string{"version"})
+	err := Execute()
+	require.NoError(t, err)
+
+	assert.Contains(t, output.String(), "my-app 1.0.0-test")
+	assert.NotContains(t, output.String(), "codo")
+}
+
+func TestVersionCmd_JSON_IncludesAppName(t *testing.T) {
+	ResetFlags()
+	ResetVersionFlags()
+	defer func() {
+		ResetFlags()
+		ResetVersionFlags()
+	}()
+
+	SetVersion("2.0.0")
+	SetAppName("test-cli")
+
+	output := new(bytes.Buffer)
+	SetOutput(output)
+	defer ResetOutput()
+
+	rootCmd.SetArgs([]string{"version", "--json"})
+	err := Execute()
+	require.NoError(t, err)
+
+	var info VersionInfo
+	err = json.Unmarshal(output.Bytes(), &info)
+	require.NoError(t, err)
+
+	assert.Equal(t, "test-cli", info.AppName)
+	assert.Equal(t, "2.0.0", info.Version)
 }

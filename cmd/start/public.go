@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codoworks/codo-framework/cmd"
+	"github.com/codoworks/codo-framework/core/app"
 	"github.com/codoworks/codo-framework/core/http"
 )
 
@@ -22,6 +23,16 @@ var publicCmd = &cobra.Command{
 		if cfg == nil {
 			return fmt.Errorf("configuration not loaded")
 		}
+
+		// Initialize app to get metadata
+		application, err := app.Initialize(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to initialize app: %w", err)
+		}
+
+		// Auto-register CLI metadata (uses app's or framework defaults)
+		meta := app.GetMetadata(application)
+		cmd.SetAppInfo(meta.Name(), meta.Short(), meta.Long())
 
 		router := http.NewRouter(http.ScopePublic, cfg.Server.PublicAddr())
 

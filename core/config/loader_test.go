@@ -14,7 +14,7 @@ func TestLoad_Defaults(t *testing.T) {
 	cfg, err := Load()
 
 	require.NoError(t, err)
-	assert.Equal(t, "codo-app", cfg.Service.Name)
+	assert.Equal(t, "development", cfg.Service.Environment)
 	assert.Equal(t, 8081, cfg.Server.PublicPort)
 	assert.Equal(t, 8080, cfg.Server.ProtectedPort)
 	assert.Equal(t, 8079, cfg.Server.HiddenPort)
@@ -24,8 +24,6 @@ func TestLoad_Defaults(t *testing.T) {
 func TestLoad_YAMLFile(t *testing.T) {
 	yamlContent := `
 service:
-  name: yaml-app
-  version: 1.2.3
   environment: staging
 server:
   public_port: 9000
@@ -48,8 +46,6 @@ database:
 	cfg, err := LoadFromFile(tmpFile.Name())
 
 	require.NoError(t, err)
-	assert.Equal(t, "yaml-app", cfg.Service.Name)
-	assert.Equal(t, "1.2.3", cfg.Service.Version)
 	assert.Equal(t, "staging", cfg.Service.Environment)
 	assert.Equal(t, 9000, cfg.Server.PublicPort)
 	assert.Equal(t, 9001, cfg.Server.ProtectedPort)
@@ -63,7 +59,7 @@ database:
 func TestLoad_EnvOverride(t *testing.T) {
 	yamlContent := `
 service:
-  name: yaml-app
+  environment: staging
 server:
   public_port: 9000
 `
@@ -76,13 +72,13 @@ server:
 	tmpFile.Close()
 
 	// Set env var to override
-	t.Setenv("CODO_SERVICE_NAME", "env-app")
+	t.Setenv("CODO_SERVICE_ENVIRONMENT", "production")
 
 	cfg, err := LoadFromFile(tmpFile.Name())
 
 	require.NoError(t, err)
 	// Env should override YAML
-	assert.Equal(t, "env-app", cfg.Service.Name)
+	assert.Equal(t, "production", cfg.Service.Environment)
 	// YAML should override defaults
 	assert.Equal(t, 9000, cfg.Server.PublicPort)
 	// Defaults should be used for unset values
@@ -90,8 +86,6 @@ server:
 }
 
 func TestLoad_EnvOverride_AllFields(t *testing.T) {
-	t.Setenv("CODO_SERVICE_NAME", "env-service")
-	t.Setenv("CODO_SERVICE_VERSION", "2.0.0")
 	t.Setenv("CODO_SERVICE_ENVIRONMENT", "production")
 	t.Setenv("CODO_PUBLIC_PORT", "3000")
 	t.Setenv("CODO_PROTECTED_PORT", "3001")
@@ -113,8 +107,6 @@ func TestLoad_EnvOverride_AllFields(t *testing.T) {
 	cfg, err := Load()
 
 	require.NoError(t, err)
-	assert.Equal(t, "env-service", cfg.Service.Name)
-	assert.Equal(t, "2.0.0", cfg.Service.Version)
 	assert.Equal(t, "production", cfg.Service.Environment)
 	assert.Equal(t, 3000, cfg.Server.PublicPort)
 	assert.Equal(t, 3001, cfg.Server.ProtectedPort)
@@ -164,7 +156,7 @@ func TestLoad_MissingFile(t *testing.T) {
 func TestLoad_PartialConfig(t *testing.T) {
 	yamlContent := `
 service:
-  name: partial-app
+  environment: staging
 `
 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
 	require.NoError(t, err)
@@ -178,9 +170,8 @@ service:
 
 	require.NoError(t, err)
 	// Provided value should be used
-	assert.Equal(t, "partial-app", cfg.Service.Name)
+	assert.Equal(t, "staging", cfg.Service.Environment)
 	// Defaults should fill in the rest
-	assert.Equal(t, "0.0.0", cfg.Service.Version)
 	assert.Equal(t, 8081, cfg.Server.PublicPort)
 	assert.Equal(t, "postgres", cfg.Database.Driver)
 }
@@ -188,7 +179,7 @@ service:
 func TestLoadFromFile(t *testing.T) {
 	yamlContent := `
 service:
-  name: file-app
+  environment: production
 database:
   driver: sqlite
   name: test.db
@@ -204,7 +195,7 @@ database:
 	cfg, err := LoadFromFile(tmpFile.Name())
 
 	require.NoError(t, err)
-	assert.Equal(t, "file-app", cfg.Service.Name)
+	assert.Equal(t, "production", cfg.Service.Environment)
 	assert.Equal(t, "sqlite", cfg.Database.Driver)
 	assert.Equal(t, "test.db", cfg.Database.Name)
 }
@@ -219,8 +210,7 @@ func TestLoadFromFile_NotFound(t *testing.T) {
 func TestLoadFromReader(t *testing.T) {
 	yamlContent := `
 service:
-  name: reader-app
-  version: 3.0.0
+  environment: production
 server:
   public_port: 5000
 `
@@ -229,8 +219,7 @@ server:
 	cfg, err := LoadFromReader(reader)
 
 	require.NoError(t, err)
-	assert.Equal(t, "reader-app", cfg.Service.Name)
-	assert.Equal(t, "3.0.0", cfg.Service.Version)
+	assert.Equal(t, "production", cfg.Service.Environment)
 	assert.Equal(t, 5000, cfg.Server.PublicPort)
 }
 
@@ -254,7 +243,7 @@ func TestLoadFromReader_Empty(t *testing.T) {
 
 	require.NoError(t, err)
 	// Should return defaults
-	assert.Equal(t, "codo-app", cfg.Service.Name)
+	assert.Equal(t, "development", cfg.Service.Environment)
 }
 
 func TestLoadFromReader_ValidationFailure(t *testing.T) {
@@ -331,7 +320,7 @@ func TestLoad_YAMLWithValidation(t *testing.T) {
 	// Valid config
 	yamlContent := `
 service:
-  name: valid-app
+  environment: production
 server:
   public_port: 8081
   protected_port: 8080
@@ -355,13 +344,13 @@ auth:
 	cfg, err := LoadFromFile(tmpFile.Name())
 
 	require.NoError(t, err)
-	assert.Equal(t, "valid-app", cfg.Service.Name)
+	assert.Equal(t, "production", cfg.Service.Environment)
 }
 
 func TestLoad_YAMLWithInvalidPorts(t *testing.T) {
 	yamlContent := `
 service:
-  name: invalid-ports
+  environment: production
 server:
   public_port: 8080
   protected_port: 8080
@@ -385,7 +374,7 @@ func TestLoad_EnvOverridesYAMLBeforeValidation(t *testing.T) {
 	// YAML has invalid duplicate ports, but env fixes it
 	yamlContent := `
 service:
-  name: env-fix
+  environment: production
 server:
   public_port: 8080
   protected_port: 8080
@@ -420,7 +409,7 @@ func TestLoad_EmptyYAMLFile(t *testing.T) {
 
 	require.NoError(t, err)
 	// Should use all defaults
-	assert.Equal(t, "codo-app", cfg.Service.Name)
+	assert.Equal(t, "development", cfg.Service.Environment)
 	assert.Equal(t, 8081, cfg.Server.PublicPort)
 }
 
@@ -428,9 +417,8 @@ func TestLoad_YAMLWithComments(t *testing.T) {
 	yamlContent := `
 # This is a comment
 service:
-  name: comment-app  # inline comment
+  environment: staging  # inline comment
   # Another comment
-  version: 1.0.0
 `
 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
 	require.NoError(t, err)
@@ -443,16 +431,14 @@ service:
 	cfg, err := LoadFromFile(tmpFile.Name())
 
 	require.NoError(t, err)
-	assert.Equal(t, "comment-app", cfg.Service.Name)
-	assert.Equal(t, "1.0.0", cfg.Service.Version)
+	assert.Equal(t, "staging", cfg.Service.Environment)
 }
 
 func TestLoad_FromDefaultLocation_ConfigYAML(t *testing.T) {
 	// Create a config.yaml file in current directory (one of the default locations)
 	yamlContent := `
 service:
-  name: default-location-app
-  version: 5.0.0
+  environment: production
 `
 	err := os.WriteFile("config.yaml", []byte(yamlContent), 0644)
 	require.NoError(t, err)
@@ -461,15 +447,14 @@ service:
 	cfg, err := Load()
 
 	require.NoError(t, err)
-	assert.Equal(t, "default-location-app", cfg.Service.Name)
-	assert.Equal(t, "5.0.0", cfg.Service.Version)
+	assert.Equal(t, "production", cfg.Service.Environment)
 }
 
 func TestLoad_FromDefaultLocation_AppYAML(t *testing.T) {
 	// Create app.yaml file in current directory
 	yamlContent := `
 service:
-  name: app-yaml-service
+  environment: staging
 `
 	err := os.WriteFile("app.yaml", []byte(yamlContent), 0644)
 	require.NoError(t, err)
@@ -478,7 +463,7 @@ service:
 	cfg, err := Load()
 
 	require.NoError(t, err)
-	assert.Equal(t, "app-yaml-service", cfg.Service.Name)
+	assert.Equal(t, "staging", cfg.Service.Environment)
 }
 
 func TestLoad_FromDefaultLocation_InvalidYAML(t *testing.T) {
@@ -518,12 +503,12 @@ server:
 func TestLoad_PriorityOrder(t *testing.T) {
 	// config/app.yaml should be checked first, then app.yaml, then config.yaml
 	// Create config.yaml
-	err := os.WriteFile("config.yaml", []byte("service:\n  name: config-yaml"), 0644)
+	err := os.WriteFile("config.yaml", []byte("service:\n  environment: production"), 0644)
 	require.NoError(t, err)
 	defer os.Remove("config.yaml")
 
 	// Create app.yaml (should take precedence)
-	err = os.WriteFile("app.yaml", []byte("service:\n  name: app-yaml"), 0644)
+	err = os.WriteFile("app.yaml", []byte("service:\n  environment: staging"), 0644)
 	require.NoError(t, err)
 	defer os.Remove("app.yaml")
 
@@ -531,7 +516,7 @@ func TestLoad_PriorityOrder(t *testing.T) {
 
 	require.NoError(t, err)
 	// app.yaml should be loaded (comes before config.yaml in priority)
-	assert.Equal(t, "app-yaml", cfg.Service.Name)
+	assert.Equal(t, "staging", cfg.Service.Environment)
 }
 
 func TestLoad_ConfigAppYAML_Priority(t *testing.T) {
@@ -540,11 +525,11 @@ func TestLoad_ConfigAppYAML_Priority(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll("config")
 
-	err = os.WriteFile("config/app.yaml", []byte("service:\n  name: config-app-yaml"), 0644)
+	err = os.WriteFile("config/app.yaml", []byte("service:\n  environment: production"), 0644)
 	require.NoError(t, err)
 
 	// Also create app.yaml (lower priority)
-	err = os.WriteFile("app.yaml", []byte("service:\n  name: app-yaml"), 0644)
+	err = os.WriteFile("app.yaml", []byte("service:\n  environment: staging"), 0644)
 	require.NoError(t, err)
 	defer os.Remove("app.yaml")
 
@@ -552,5 +537,5 @@ func TestLoad_ConfigAppYAML_Priority(t *testing.T) {
 
 	require.NoError(t, err)
 	// config/app.yaml should be loaded (highest priority)
-	assert.Equal(t, "config-app-yaml", cfg.Service.Name)
+	assert.Equal(t, "production", cfg.Service.Environment)
 }

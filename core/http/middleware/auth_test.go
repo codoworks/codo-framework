@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/codoworks/codo-framework/core/auth"
-	"github.com/codoworks/codo-framework/core/clients/kratos"
+	"github.com/codoworks/codo-framework/clients/kratos"
 )
 
 func TestAuthMiddleware(t *testing.T) {

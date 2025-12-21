@@ -76,6 +76,42 @@ func MustGetTyped[T Client](name string) T {
 	return client
 }
 
+// GetOptionalTyped retrieves an optional client with type assertion.
+// Returns (client, true, nil) if found and correct type
+// Returns (nil, false, nil) if not found and client is optional
+// Returns (nil, false, error) if not found and client is required
+// Returns (nil, false, error) if found but wrong type
+func GetOptionalTyped[T Client](name string) (T, bool, error) {
+	var zero T
+
+	client, err := Get(name)
+	if err != nil {
+		// Check if client is optional
+		if !IsRequired(name) {
+			return zero, false, nil
+		}
+		return zero, false, fmt.Errorf("required client %q not found", name)
+	}
+
+	typed, ok := client.(T)
+	if !ok {
+		return zero, false, fmt.Errorf("client %q is not of expected type", name)
+	}
+	return typed, true, nil
+}
+
+// MustGetOptionalTyped retrieves an optional typed client.
+// Returns (client, true) if found
+// Returns (nil, false) if not found and optional
+// Panics if not found and required, or if wrong type
+func MustGetOptionalTyped[T Client](name string) (T, bool) {
+	client, found, err := GetOptionalTyped[T](name)
+	if err != nil {
+		panic(err)
+	}
+	return client, found
+}
+
 // All returns all registered clients.
 func All() map[string]Client {
 	return getRegistry().All()
@@ -99,6 +135,59 @@ func InitializeAll(configs map[string]any) error {
 			return fmt.Errorf("failed to initialize client %q: %w", name, err)
 		}
 	}
+	return nil
+}
+
+// Logger interface for bootstrap logging (subset of logger.Logger)
+type Logger interface {
+	Info(args ...any)
+	Infof(format string, args ...any)
+	Warn(args ...any)
+	Warnf(format string, args ...any)
+	Error(args ...any)
+	Errorf(format string, args ...any)
+}
+
+// InitializeAllWithMetadata initializes all registered clients with enhanced error handling
+// based on client metadata. Required clients fail immediately on error. Optional clients
+// log warnings and are removed from the registry on failure, allowing the app to continue.
+func InitializeAllWithMetadata(configs map[string]any, log Logger) error {
+	var optionalErrors []error
+
+	for name, client := range getRegistry().All() {
+		cfg := configs[name]
+
+		if err := client.Initialize(cfg); err != nil {
+			meta, _ := GetMetadata(name)
+
+			if meta.Requirement == ClientRequired {
+				// Required client failed - this is fatal
+				if log != nil {
+					log.Errorf("Failed to initialize required client %q: %v", name, err)
+				}
+				return fmt.Errorf("failed to initialize required client %q: %w", name, err)
+			} else {
+				// Optional client failed - log warning and continue
+				if log != nil {
+					log.Warnf("Failed to initialize optional client %q: %v", name, err)
+				}
+				optionalErrors = append(optionalErrors, fmt.Errorf("optional client %q: %w", name, err))
+
+				// Remove failed optional client from registry
+				getRegistry().Remove(name)
+			}
+		} else {
+			if log != nil {
+				log.Infof("Initialized client: %s", name)
+			}
+		}
+	}
+
+	// Log summary of optional client failures if any
+	if len(optionalErrors) > 0 && log != nil {
+		log.Warnf("%d optional client(s) failed to initialize but application will continue", len(optionalErrors))
+	}
+
 	return nil
 }
 
