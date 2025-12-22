@@ -36,14 +36,22 @@ func HealthCheckersCount() int {
 	return len(healthCheckers)
 }
 
-// RegisterHealthRoutes registers health check routes on an Echo instance
+// RegisterHealthRoutes registers health check routes on an Echo instance.
+//
+// Deprecated: Health routes now auto-register via HealthHandler.
+// This function is kept for backwards compatibility but will be removed in v4.0.
+// Remove any manual calls to RegisterHealthRoutes() from your code.
 func RegisterHealthRoutes(e *echo.Echo) {
 	g := e.Group("/health")
 	g.GET("/alive", handleAlive)
 	g.GET("/ready", handleReady)
 }
 
-// RegisterHealthRoutesOnRouter registers health check routes on a Router
+// RegisterHealthRoutesOnRouter registers health check routes on a Router.
+//
+// Deprecated: Health routes now auto-register via HealthHandler.
+// This function is kept for backwards compatibility but will be removed in v4.0.
+// Remove any manual calls to RegisterHealthRoutesOnRouter() from your code.
 func RegisterHealthRoutesOnRouter(r *Router) {
 	g := r.Echo().Group("/health")
 	g.GET("/alive", handleAlive)

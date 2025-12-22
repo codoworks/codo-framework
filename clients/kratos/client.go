@@ -64,7 +64,7 @@ func (c *Client) Health() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", c.config.PublicURL+"/health/alive", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", c.config.PublicURL+"/health/live", nil)
 	if err != nil {
 		return fmt.Errorf("failed to create health request: %w", err)
 	}

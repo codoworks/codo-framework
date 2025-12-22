@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/codoworks/codo-framework/core/config"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -187,4 +188,234 @@ func TestRunHealthChecks_Empty(t *testing.T) {
 
 	assert.True(t, healthy)
 	assert.Empty(t, results)
+}
+
+// HealthHandler Tests
+
+func TestHealthHandler_AutoRegistration(t *testing.T) {
+	// Verify HealthHandler is in global registry
+	handlers := AllHandlers()
+	found := false
+	for _, h := range handlers {
+		if _, ok := h.(*HealthHandler); ok {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "HealthHandler should be auto-registered")
+}
+
+func TestHealthHandler_Scope(t *testing.T) {
+	h := &HealthHandler{}
+	assert.Equal(t, ScopePublic, h.Scope())
+}
+
+func TestHealthHandler_Prefix(t *testing.T) {
+	h := &HealthHandler{}
+	assert.Equal(t, "/health", h.Prefix())
+}
+
+func TestHealthHandler_Middlewares(t *testing.T) {
+	h := &HealthHandler{}
+	assert.Nil(t, h.Middlewares())
+}
+
+func TestHealthHandler_Initialize(t *testing.T) {
+	h := &HealthHandler{}
+	err := h.Initialize()
+	assert.NoError(t, err)
+}
+
+func TestHealthHandler_Routes(t *testing.T) {
+	h := &HealthHandler{}
+	e := echo.New()
+	g := e.Group("/health")
+	h.Routes(g)
+
+	routes := e.Routes()
+	pathMethods := make(map[string][]string) // path -> methods
+	for _, r := range routes {
+		pathMethods[r.Path] = append(pathMethods[r.Path], r.Method)
+	}
+
+	// Check all paths exist with both GET and HEAD
+	assert.Contains(t, pathMethods["/health"], "GET")
+	assert.Contains(t, pathMethods["/health"], "HEAD")
+
+	assert.Contains(t, pathMethods["/health/live"], "GET")
+	assert.Contains(t, pathMethods["/health/live"], "HEAD")
+
+	assert.Contains(t, pathMethods["/health/ready"], "GET")
+	assert.Contains(t, pathMethods["/health/ready"], "HEAD")
+}
+
+func TestHealthHandler_HEADSupport(t *testing.T) {
+	ClearNamedHealthCheckers()
+	defer ClearNamedHealthCheckers()
+
+	h := &HealthHandler{}
+	e := echo.New()
+	g := e.Group("/health")
+	h.Routes(g)
+
+	// Test HEAD /health/live
+	req := httptest.NewRequest(http.MethodHead, "/health/live", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, rec.Body.String(), "HEAD should have no body")
+
+	// Test HEAD /health/ready (healthy)
+	req = httptest.NewRequest(http.MethodHead, "/health/ready", nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, rec.Body.String(), "HEAD should have no body")
+
+	// Test HEAD /health/ready (unhealthy)
+	RegisterNamedHealthChecker("db", func() error { return errors.New("failed") })
+	req = httptest.NewRequest(http.MethodHead, "/health/ready", nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.Empty(t, rec.Body.String(), "HEAD should have no body")
+}
+
+func TestHealthHandler_RootRedirect(t *testing.T) {
+	h := &HealthHandler{}
+	e := echo.New()
+	g := e.Group("/health")
+	h.Routes(g)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.handleHealthRoot(c)
+	assert.NoError(t, err)
+
+	assert.Equal(t, http.StatusMovedPermanently, rec.Code)
+	assert.Equal(t, "/health/ready", rec.Header().Get("Location"))
+}
+
+func TestHealthHandler_LiveEndpoint(t *testing.T) {
+	h := &HealthHandler{}
+	e := echo.New()
+	g := e.Group("/health")
+	h.Routes(g)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"status":"alive"`)
+}
+
+func TestHealthHandler_ReadyEndpoint_Healthy(t *testing.T) {
+	ClearNamedHealthCheckers()
+	defer ClearNamedHealthCheckers()
+
+	RegisterNamedHealthChecker("db", func() error { return nil })
+
+	h := &HealthHandler{}
+	e := echo.New()
+	g := e.Group("/health")
+	h.Routes(g)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"status":"ready"`)
+}
+
+func TestHealthHandler_ReadyEndpoint_Unhealthy(t *testing.T) {
+	ClearNamedHealthCheckers()
+	defer ClearNamedHealthCheckers()
+
+	RegisterNamedHealthChecker("db", func() error { return errors.New("connection failed") })
+
+	h := &HealthHandler{}
+	e := echo.New()
+	g := e.Group("/health")
+	h.Routes(g)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"status":"not ready"`)
+}
+
+func TestHealthHandler_DevModeDetails(t *testing.T) {
+	ClearNamedHealthCheckers()
+	defer ClearNamedHealthCheckers()
+
+	RegisterNamedHealthChecker("db", func() error { return errors.New("connection timeout") })
+
+	// Test production mode (no details)
+	prodConfig := config.NewWithDefaults()
+	prodConfig.DevMode = false
+	prodConfig.Middleware.Health.Enabled = true
+	prodConfig.Middleware.Health.ShowDetailsInProd = false
+	SetGlobalConfig(prodConfig)
+
+	h := &HealthHandler{}
+	h.Initialize()
+	e := echo.New()
+	g := e.Group("/health")
+	h.Routes(g)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.NotContains(t, rec.Body.String(), "connection timeout", "No details in prod")
+
+	// Test dev mode (with details)
+	devConfig := config.NewWithDefaults()
+	devConfig.DevMode = true
+	devConfig.Middleware.Health.Enabled = true
+	SetGlobalConfig(devConfig)
+
+	h2 := &HealthHandler{}
+	h2.Initialize()
+	e2 := echo.New()
+	g2 := e2.Group("/health")
+	h2.Routes(g2)
+
+	req = httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+	rec = httptest.NewRecorder()
+	e2.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.Contains(t, rec.Body.String(), "connection timeout", "Details in dev mode")
+
+	// Clean up
+	SetGlobalConfig(nil)
+}
+
+func TestHealthHandler_DisabledViaConfig(t *testing.T) {
+	cfg := config.NewWithDefaults()
+	cfg.Middleware.Health.Enabled = false
+	SetGlobalConfig(cfg)
+
+	h := &HealthHandler{}
+	h.Initialize()
+	e := echo.New()
+	g := e.Group("/health")
+	h.Routes(g)
+
+	routes := e.Routes()
+	assert.Empty(t, routes, "No routes should be registered when disabled")
+
+	// Clean up
+	SetGlobalConfig(nil)
 }

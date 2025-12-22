@@ -86,7 +86,7 @@ func TestClient_Initialize_DefaultTimeout(t *testing.T) {
 
 func TestClient_Health(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/health/alive", r.URL.Path)
+		assert.Equal(t, "/health/live", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()

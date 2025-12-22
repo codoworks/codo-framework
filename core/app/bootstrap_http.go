@@ -92,6 +92,9 @@ func bootstrapHTTPServer(cfg *config.Config, opts BootstrapOptions) (BaseApp, er
 		}
 	}
 
+	// Make config accessible to handlers
+	http.SetGlobalConfig(cfg)
+
 	// Prepare routes (doesn't start server)
 	if err := server.PrepareRoutes(); err != nil {
 		return nil, fmt.Errorf("prepare routes: %w", err)
@@ -143,6 +146,9 @@ func bootstrapHTTPRouter(cfg *config.Config, opts BootstrapOptions) (BaseApp, er
 			return nil, fmt.Errorf("handler registration: %w", err)
 		}
 	}
+
+	// Make config accessible to handlers
+	http.SetGlobalConfig(cfg)
 
 	// Prepare routes
 	if err := router.RegisterHandlers(); err != nil {

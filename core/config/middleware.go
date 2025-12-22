@@ -29,6 +29,8 @@ type MiddlewareConfig struct {
 	Recover RecoverMiddlewareConfig `yaml:"recover"`
 	Gzip    GzipMiddlewareConfig    `yaml:"gzip"`
 	XSS     XSSMiddlewareConfig     `yaml:"xss"`
+	Auth    AuthMiddlewareConfig    `yaml:"auth"`
+	Health  HealthConfig            `yaml:"health"`
 }
 
 // LoggerMiddlewareConfig holds configuration for the logger middleware
@@ -75,6 +77,26 @@ type XSSMiddlewareConfig struct {
 	HSTSMaxAge           int    `yaml:"hsts_max_age"`         // Strict-Transport-Security max-age
 }
 
+// AuthMiddlewareConfig holds configuration for the authentication middleware
+type AuthMiddlewareConfig struct {
+	BaseMiddlewareConfig `yaml:",inline"`
+	SkipPaths            []string          `yaml:"skip_paths"`
+	DevMode              bool              `yaml:"dev_mode"`
+	DevIdentity          *DevIdentityConfig `yaml:"dev_identity"`
+}
+
+// DevIdentityConfig holds configuration for dev mode identity bypass
+type DevIdentityConfig struct {
+	ID     string         `yaml:"id"`
+	Traits map[string]any `yaml:"traits"`
+}
+
+// HealthConfig holds configuration for health check endpoints
+type HealthConfig struct {
+	Enabled           bool `yaml:"enabled" default:"true"`
+	ShowDetailsInProd bool `yaml:"show_details_in_prod" default:"false"`
+}
+
 // DefaultMiddlewareConfig returns default middleware configuration
 func DefaultMiddlewareConfig() MiddlewareConfig {
 	return MiddlewareConfig{
@@ -83,7 +105,7 @@ func DefaultMiddlewareConfig() MiddlewareConfig {
 				Enabled:          true,
 				DisableInDevMode: false,
 			},
-			SkipPaths: []string{"/health/alive", "/health/ready"},
+			SkipPaths: []string{"/health", "/health/live", "/health/ready"},
 		},
 		CORS: CORSMiddlewareConfig{
 			BaseMiddlewareConfig: BaseMiddlewareConfig{
@@ -127,6 +149,18 @@ func DefaultMiddlewareConfig() MiddlewareConfig {
 			ContentTypeNosniff: "nosniff",
 			XFrameOptions:      "SAMEORIGIN",
 			HSTSMaxAge:         31536000, // 1 year
+		},
+		Auth: AuthMiddlewareConfig{
+			BaseMiddlewareConfig: BaseMiddlewareConfig{
+				Enabled:          true, // ENABLED BY DEFAULT
+				DisableInDevMode: false,
+			},
+			SkipPaths: []string{"/health"},
+			DevMode:   false,
+		},
+		Health: HealthConfig{
+			Enabled:           true,  // ENABLED BY DEFAULT
+			ShowDetailsInProd: false, // Details only in dev mode
 		},
 	}
 }
