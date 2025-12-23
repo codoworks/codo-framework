@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/codoworks/codo-framework/core/errors"
 	"github.com/codoworks/codo-framework/core/registry"
 )
 
@@ -31,9 +32,15 @@ func Register(client Client) error {
 }
 
 // MustRegister adds a client to the global registry and panics on error.
+// Displays a beautifully formatted error via the framework's error engine before panicking.
 func MustRegister(client Client) {
 	if err := Register(client); err != nil {
-		panic(err)
+		frameworkErr := errors.Conflict("Client already registered").
+			WithCause(err).
+			WithPhase(errors.PhaseClient).
+			WithDetail("client_name", client.Name())
+		errors.RenderCLI(frameworkErr)
+		panic(frameworkErr)
 	}
 }
 
@@ -43,8 +50,18 @@ func Get(name string) (Client, error) {
 }
 
 // MustGet retrieves a client or panics.
+// Displays a beautifully formatted error via the framework's error engine before panicking.
 func MustGet(name string) Client {
-	return getRegistry().MustGet(name)
+	client, err := Get(name)
+	if err != nil {
+		frameworkErr := errors.NotFound("Client not found").
+			WithCause(err).
+			WithPhase(errors.PhaseClient).
+			WithDetail("client_name", name)
+		errors.RenderCLI(frameworkErr)
+		panic(frameworkErr)
+	}
+	return client
 }
 
 // Has checks if a client exists.
@@ -68,10 +85,25 @@ func GetTyped[T Client](name string) (T, error) {
 }
 
 // MustGetTyped retrieves a typed client or panics.
+// Displays a beautifully formatted error via the framework's error engine before panicking.
 func MustGetTyped[T Client](name string) T {
 	client, err := GetTyped[T](name)
 	if err != nil {
-		panic(err)
+		// Determine if it's a "not found" or "type mismatch" error
+		var frameworkErr *errors.Error
+		if _, getErr := Get(name); getErr != nil {
+			frameworkErr = errors.NotFound("Client not found").
+				WithCause(err).
+				WithPhase(errors.PhaseClient).
+				WithDetail("client_name", name)
+		} else {
+			frameworkErr = errors.BadRequest("Client type mismatch").
+				WithCause(err).
+				WithPhase(errors.PhaseClient).
+				WithDetail("client_name", name)
+		}
+		errors.RenderCLI(frameworkErr)
+		panic(frameworkErr)
 	}
 	return client
 }
@@ -104,10 +136,25 @@ func GetOptionalTyped[T Client](name string) (T, bool, error) {
 // Returns (client, true) if found
 // Returns (nil, false) if not found and optional
 // Panics if not found and required, or if wrong type
+// Displays a beautifully formatted error via the framework's error engine before panicking.
 func MustGetOptionalTyped[T Client](name string) (T, bool) {
 	client, found, err := GetOptionalTyped[T](name)
 	if err != nil {
-		panic(err)
+		// Determine if it's a "required but not found" or "type mismatch" error
+		var frameworkErr *errors.Error
+		if _, getErr := Get(name); getErr != nil {
+			frameworkErr = errors.NotFound("Required client not found").
+				WithCause(err).
+				WithPhase(errors.PhaseClient).
+				WithDetail("client_name", name)
+		} else {
+			frameworkErr = errors.BadRequest("Client type mismatch").
+				WithCause(err).
+				WithPhase(errors.PhaseClient).
+				WithDetail("client_name", name)
+		}
+		errors.RenderCLI(frameworkErr)
+		panic(frameworkErr)
 	}
 	return client, found
 }

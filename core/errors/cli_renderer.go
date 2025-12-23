@@ -156,7 +156,13 @@ func renderErrorChain(err *Error, indent string, dimColor, valueColor *color.Col
 	cfg := GetCLIConfig()
 
 	for current != nil && depth < cfg.MaxChainDepth {
-		fmt.Fprintf(os.Stderr, "%s%s %s\n", indent, dimColor.Sprint("→"), valueColor.Sprint(current.Error()))
+		// For framework errors, show only the message to avoid redundant nested error strings
+		// (since Error() includes code + message + cause, which creates repetition)
+		if e, ok := current.(*Error); ok {
+			fmt.Fprintf(os.Stderr, "%s%s %s\n", indent, dimColor.Sprint("→"), valueColor.Sprint(e.Message))
+		} else {
+			fmt.Fprintf(os.Stderr, "%s%s %s\n", indent, dimColor.Sprint("→"), valueColor.Sprint(current.Error()))
+		}
 
 		// If it's our error type, show additional context
 		if e, ok := current.(*Error); ok {

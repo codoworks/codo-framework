@@ -256,7 +256,8 @@ func TestAuthMiddleware_DevMode(t *testing.T) {
 		BaseMiddlewareConfig: config.BaseMiddlewareConfig{
 			Enabled: true,
 		},
-		DevMode: true,
+		DevMode:       true,
+		DevBypassAuth: true, // Required for bypass
 		DevIdentity: &config.DevIdentityConfig{
 			ID: "dev-user",
 			Traits: map[string]any{

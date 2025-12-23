@@ -80,9 +80,12 @@ type XSSMiddlewareConfig struct {
 // AuthMiddlewareConfig holds configuration for the authentication middleware
 type AuthMiddlewareConfig struct {
 	BaseMiddlewareConfig `yaml:",inline"`
-	SkipPaths            []string          `yaml:"skip_paths"`
-	DevMode              bool              `yaml:"dev_mode"`
+	SkipPaths            []string           `yaml:"skip_paths"`
+	DevMode              bool               `yaml:"dev_mode"`         // Enables verbose logging (user ID/name)
+	DevBypassAuth        bool               `yaml:"dev_bypass_auth"`  // Skip real auth, use DevIdentity
 	DevIdentity          *DevIdentityConfig `yaml:"dev_identity"`
+	CacheEnabled         bool               `yaml:"cache_enabled"`    // Enable session caching
+	CacheTTL             time.Duration      `yaml:"cache_ttl"`        // Cache time-to-live
 }
 
 // DevIdentityConfig holds configuration for dev mode identity bypass
@@ -155,8 +158,11 @@ func DefaultMiddlewareConfig() MiddlewareConfig {
 				Enabled:          true, // ENABLED BY DEFAULT
 				DisableInDevMode: false,
 			},
-			SkipPaths: []string{"/health"},
-			DevMode:   false,
+			SkipPaths:     []string{"/health"},
+			DevMode:       false,
+			DevBypassAuth: false,
+			CacheEnabled:  true,
+			CacheTTL:      15 * time.Minute,
 		},
 		Health: HealthConfig{
 			Enabled:           true,  // ENABLED BY DEFAULT
