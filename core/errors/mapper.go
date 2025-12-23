@@ -3,6 +3,7 @@ package errors
 import (
 	"context"
 	"database/sql"
+	"log"
 	"reflect"
 	"sync"
 )
@@ -84,6 +85,9 @@ func (m *ErrorMapper) registerDefaults() {
 func (m *ErrorMapper) RegisterSentinel(err error, spec MappingSpec) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, exists := m.sentinelMappings[err]; exists {
+		log.Printf("[errors] WARNING: Overwriting existing sentinel mapping for error: %v", err)
+	}
 	m.sentinelMappings[err] = spec
 }
 
@@ -96,6 +100,9 @@ func (m *ErrorMapper) RegisterType(errType error, spec MappingSpec) {
 	if t != nil {
 		m.mu.Lock()
 		defer m.mu.Unlock()
+		if _, exists := m.typeMappings[t]; exists {
+			log.Printf("[errors] WARNING: Overwriting existing type mapping for: %v", t)
+		}
 		m.typeMappings[t] = spec
 	}
 }
@@ -179,7 +186,9 @@ func (m *ErrorMapper) createFromSpec(err error, spec MappingSpec) *Error {
 		msg = err.Error()
 	}
 
-	return Wrap(err, spec.Code, msg, spec.HTTPStatus)
+	e := Wrap(err, spec.Code, msg, spec.HTTPStatus)
+	e.LogLevel = spec.LogLevel
+	return e
 }
 
 // isError checks if an error matches a target (similar to errors.Is but simpler)

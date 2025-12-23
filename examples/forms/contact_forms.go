@@ -112,3 +112,16 @@ func NewContactListResponse(contacts []*models.Contact) []*ContactResponse {
 type MoveContactRequest struct {
 	GroupID *string `json:"group_id" validate:"omitempty,uuid"`
 }
+
+// BatchMoveRequest is the form for moving multiple contacts to a group
+// This is an example of a batch operation that may have partial failures
+type BatchMoveRequest struct {
+	ContactIDs []string `json:"contact_ids" validate:"required,min=1,max=100,dive,uuid"`
+	GroupID    *string  `json:"group_id" validate:"omitempty,uuid"`
+}
+
+// BatchResult represents the result of a batch operation
+type BatchResult struct {
+	Processed int `json:"processed"` // Number of items successfully processed
+	Total     int `json:"total"`     // Total items in request
+}

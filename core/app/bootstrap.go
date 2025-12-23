@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"github.com/codoworks/codo-framework/clients/kratos"
 	"github.com/codoworks/codo-framework/clients/logger"
 	"github.com/codoworks/codo-framework/clients/rabbitmq"
 	"github.com/codoworks/codo-framework/core/clients"
@@ -13,6 +14,7 @@ import (
 	"github.com/codoworks/codo-framework/core/middleware"
 
 	// Import middleware packages to trigger auto-registration
+	_ "github.com/codoworks/codo-framework/core/middleware/auth"
 	_ "github.com/codoworks/codo-framework/core/middleware/cors"
 	_ "github.com/codoworks/codo-framework/core/middleware/gzip"
 	_ "github.com/codoworks/codo-framework/core/middleware/logger"
@@ -111,6 +113,14 @@ func registerFrameworkClients(cfg *config.Config) error {
 		}
 	}
 
+	// Conditionally register Kratos based on feature toggle
+	if cfg.Features.IsEnabled(config.FeatureKratos) {
+		clients.MustRegister(kratos.New())
+		log.Info("Kratos client registered")
+	} else {
+		log.Warn("Kratos client disabled via feature toggle")
+	}
+
 	// Always register database (required)
 	dbClient := db.NewClient(nil)
 	clients.MustRegister(dbClient)
@@ -129,6 +139,16 @@ func registerFrameworkClients(cfg *config.Config) error {
 	// Only add RabbitMQ config if registered
 	if clients.Has(rabbitmq.ClientName) {
 		clientConfigs["rabbitmq"] = &cfg.RabbitMQ
+	}
+
+	// Only add Kratos config if registered
+	if clients.Has(kratos.ClientName) {
+		clientConfigs[kratos.ClientName] = &kratos.ClientConfig{
+			PublicURL:  cfg.Auth.KratosPublicURL,
+			AdminURL:   cfg.Auth.KratosAdminURL,
+			CookieName: cfg.Auth.SessionCookie,
+			Timeout:    10 * time.Second,
+		}
 	}
 
 	// Initialize with enhanced error handling
@@ -151,6 +171,12 @@ func registerFrameworkClientMetadata() {
 		Name:        rabbitmq.ClientName,
 		Requirement: clients.ClientOptional,
 		FeatureName: config.FeatureRabbitMQ,
+	})
+
+	clients.RegisterMetadata(clients.ClientMetadata{
+		Name:        kratos.ClientName,
+		Requirement: clients.ClientOptional,
+		FeatureName: config.FeatureKratos,
 	})
 
 	clients.RegisterMetadata(clients.ClientMetadata{

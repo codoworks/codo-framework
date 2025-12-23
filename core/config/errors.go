@@ -28,6 +28,10 @@ type ErrorCaptureConfig struct {
 	// Captured traces are logged and available for debugging
 	StackTraceOn5xx bool `yaml:"stack_trace_on_5xx"`
 
+	// StackTraceOn4xx controls whether stack traces are captured for 4xx errors
+	// Useful for debugging client errors during development
+	StackTraceOn4xx bool `yaml:"stack_trace_on_4xx"`
+
 	// StackTraceDepth controls how many stack frames to capture
 	StackTraceDepth int `yaml:"stack_trace_depth"`
 

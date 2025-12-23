@@ -18,7 +18,7 @@ type Context struct {
 // BindAndValidate binds the request body and validates it
 func (c *Context) BindAndValidate(form any) error {
 	if err := c.Bind(form); err != nil {
-		return &BindError{Cause: err}
+		return &BindError{Cause: err, BindType: BindTypeJSON}
 	}
 	if err := c.Validate(form); err != nil {
 		return err
@@ -30,12 +30,12 @@ func (c *Context) BindAndValidate(form any) error {
 func (c *Context) ParamUUID(name string) (string, error) {
 	val := c.Param(name)
 	if val == "" {
-		return "", &ParamError{Param: name, Message: "required"}
+		return "", &ParamError{Param: name, Message: "required", ParamType: ParamTypePath}
 	}
 
 	// Validate UUID format
 	if _, err := uuid.Parse(val); err != nil {
-		return "", &ParamError{Param: name, Message: "must be a valid UUID"}
+		return "", &ParamError{Param: name, Message: "must be a valid UUID", ParamType: ParamTypePath, Value: val}
 	}
 
 	return val, nil
@@ -81,6 +81,65 @@ func (c *Context) QueryBool(name string, defaultVal bool) bool {
 		return defaultVal
 	}
 	return result
+}
+
+// ParamInt extracts an integer path parameter
+func (c *Context) ParamInt(name string) (int, error) {
+	val := c.Param(name)
+	if val == "" {
+		return 0, &ParamError{Param: name, Message: "required", ParamType: ParamTypePath}
+	}
+
+	result, err := strconv.Atoi(val)
+	if err != nil {
+		return 0, &ParamError{Param: name, Message: "must be a valid integer", ParamType: ParamTypePath, Value: val}
+	}
+	return result, nil
+}
+
+// ParamInt64 extracts an int64 path parameter
+func (c *Context) ParamInt64(name string) (int64, error) {
+	val := c.Param(name)
+	if val == "" {
+		return 0, &ParamError{Param: name, Message: "required", ParamType: ParamTypePath}
+	}
+
+	result, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return 0, &ParamError{Param: name, Message: "must be a valid integer", ParamType: ParamTypePath, Value: val}
+	}
+	return result, nil
+}
+
+// QueryUUID extracts a UUID query parameter
+func (c *Context) QueryUUID(name string) (string, error) {
+	val := c.QueryParam(name)
+	if val == "" {
+		return "", &ParamError{Param: name, Message: "required", ParamType: ParamTypeQuery}
+	}
+
+	// Validate UUID format
+	if _, err := uuid.Parse(val); err != nil {
+		return "", &ParamError{Param: name, Message: "must be a valid UUID", ParamType: ParamTypeQuery, Value: val}
+	}
+
+	return val, nil
+}
+
+// QueryUUIDOptional extracts an optional UUID query parameter
+// Returns empty string if not provided, error only if provided but invalid
+func (c *Context) QueryUUIDOptional(name string) (string, error) {
+	val := c.QueryParam(name)
+	if val == "" {
+		return "", nil
+	}
+
+	// Validate UUID format
+	if _, err := uuid.Parse(val); err != nil {
+		return "", &ParamError{Param: name, Message: "must be a valid UUID", ParamType: ParamTypeQuery, Value: val}
+	}
+
+	return val, nil
 }
 
 // Success sends a 200 OK response with any accumulated warnings
@@ -148,12 +207,27 @@ func (c *Context) HasWarnings() bool {
 	return len(c.warnings) > 0
 }
 
-// BindError represents a binding error
+// BindType constants for binding error context
+const (
+	BindTypeJSON  = "json"
+	BindTypeForm  = "form"
+	BindTypeQuery = "query"
+)
+
+// BindError represents a binding error with context
 type BindError struct {
-	Cause error
+	Cause     error
+	BindType  string // "json", "form", "query" - the type of binding that failed
+	FieldName string // The field that failed to bind (if known)
 }
 
 func (e *BindError) Error() string {
+	if e.FieldName != "" {
+		return fmt.Sprintf("binding error (%s): field %s: %v", e.BindType, e.FieldName, e.Cause)
+	}
+	if e.BindType != "" {
+		return fmt.Sprintf("binding error (%s): %v", e.BindType, e.Cause)
+	}
 	return fmt.Sprintf("binding error: %v", e.Cause)
 }
 
@@ -162,12 +236,27 @@ func (e *BindError) Unwrap() error {
 	return e.Cause
 }
 
-// ParamError represents a parameter error
+// ParamType constants for parameter error context
+const (
+	ParamTypePath   = "path"
+	ParamTypeQuery  = "query"
+	ParamTypeHeader = "header"
+)
+
+// ParamError represents a parameter error with context
 type ParamError struct {
-	Param   string
-	Message string
+	Param     string // Parameter name
+	Message   string // Error message
+	ParamType string // "path", "query", "header" - where the parameter comes from
+	Value     string // The invalid value that was provided
 }
 
 func (e *ParamError) Error() string {
+	if e.Value != "" {
+		return fmt.Sprintf("%s parameter %s: %s (value: %q)", e.ParamType, e.Param, e.Message, e.Value)
+	}
+	if e.ParamType != "" {
+		return fmt.Sprintf("%s parameter %s: %s", e.ParamType, e.Param, e.Message)
+	}
 	return fmt.Sprintf("parameter %s: %s", e.Param, e.Message)
 }

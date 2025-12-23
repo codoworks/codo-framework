@@ -5,10 +5,45 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
 )
+
+// CLIConfig holds configuration for CLI error rendering
+type CLIConfig struct {
+	MaxStackFrames int // Maximum stack frames to display (default: 10)
+	MaxChainDepth  int // Maximum error chain depth to display (default: 5)
+}
+
+var (
+	cliConfig = CLIConfig{
+		MaxStackFrames: 10,
+		MaxChainDepth:  5,
+	}
+	cliConfigMu sync.RWMutex
+)
+
+// SetCLIConfig sets the CLI rendering configuration
+func SetCLIConfig(cfg CLIConfig) {
+	cliConfigMu.Lock()
+	defer cliConfigMu.Unlock()
+	if cfg.MaxStackFrames <= 0 {
+		cfg.MaxStackFrames = 10
+	}
+	if cfg.MaxChainDepth <= 0 {
+		cfg.MaxChainDepth = 5
+	}
+	cliConfig = cfg
+}
+
+// GetCLIConfig returns the current CLI rendering configuration
+func GetCLIConfig() CLIConfig {
+	cliConfigMu.RLock()
+	defer cliConfigMu.RUnlock()
+	return cliConfig
+}
 
 func init() {
 	// Respect NO_COLOR environment variable (https://no-color.org/)
@@ -98,9 +133,10 @@ func RenderCLI(err error) {
 
 	// Stack trace (if present)
 	if len(mappedErr.StackTrace) > 0 {
+		cfg := GetCLIConfig()
 		fmt.Fprintf(os.Stderr, "\n%s\n", labelColor.Sprint("Stack Trace:"))
 		for i, frame := range mappedErr.StackTrace {
-			if i >= 10 {
+			if i >= cfg.MaxStackFrames {
 				fmt.Fprintf(os.Stderr, "  %s\n", dimColor.Sprint("... (truncated)"))
 				break
 			}
@@ -117,9 +153,9 @@ func RenderCLI(err error) {
 func renderErrorChain(err *Error, indent string, dimColor, valueColor *color.Color) {
 	current := err.Cause
 	depth := 0
-	maxDepth := 5
+	cfg := GetCLIConfig()
 
-	for current != nil && depth < maxDepth {
+	for current != nil && depth < cfg.MaxChainDepth {
 		fmt.Fprintf(os.Stderr, "%s%s %s\n", indent, dimColor.Sprint("→"), valueColor.Sprint(current.Error()))
 
 		// If it's our error type, show additional context

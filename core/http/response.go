@@ -173,6 +173,10 @@ func ErrorResponse(err error) *Response {
 }
 
 // NotFound creates a not found response
+//
+// Deprecated: Use ErrorResponse(errors.NotFound("message")) instead.
+// The errors package provides richer error context including caller info,
+// stack traces, and error chaining.
 func NotFound(message string) *Response {
 	if message == "" {
 		message = "Resource not found"
@@ -185,6 +189,10 @@ func NotFound(message string) *Response {
 }
 
 // BadRequest creates a bad request response
+//
+// Deprecated: Use ErrorResponse(errors.BadRequest("message")) instead.
+// The errors package provides richer error context including caller info,
+// stack traces, and error chaining.
 func BadRequest(message string) *Response {
 	if message == "" {
 		message = "Bad request"
@@ -197,6 +205,10 @@ func BadRequest(message string) *Response {
 }
 
 // Unauthorized creates an unauthorized response
+//
+// Deprecated: Use ErrorResponse(errors.Unauthorized("message")) instead.
+// The errors package provides richer error context including caller info,
+// stack traces, and error chaining.
 func Unauthorized(message string) *Response {
 	if message == "" {
 		message = "Unauthorized"
@@ -209,6 +221,10 @@ func Unauthorized(message string) *Response {
 }
 
 // Forbidden creates a forbidden response
+//
+// Deprecated: Use ErrorResponse(errors.Forbidden("message")) instead.
+// The errors package provides richer error context including caller info,
+// stack traces, and error chaining.
 func Forbidden(message string) *Response {
 	if message == "" {
 		message = "Forbidden"
@@ -221,6 +237,10 @@ func Forbidden(message string) *Response {
 }
 
 // Conflict creates a conflict response
+//
+// Deprecated: Use ErrorResponse(errors.Conflict("message")) instead.
+// The errors package provides richer error context including caller info,
+// stack traces, and error chaining.
 func Conflict(message string) *Response {
 	if message == "" {
 		message = "Resource conflict"
@@ -233,6 +253,10 @@ func Conflict(message string) *Response {
 }
 
 // ServiceUnavailable creates a service unavailable response
+//
+// Deprecated: Use ErrorResponse(errors.Unavailable("message")) instead.
+// The errors package provides richer error context including caller info,
+// stack traces, and error chaining.
 func ServiceUnavailable(message string) *Response {
 	if message == "" {
 		message = "Service temporarily unavailable"
@@ -245,6 +269,10 @@ func ServiceUnavailable(message string) *Response {
 }
 
 // InternalError creates an internal error response
+//
+// Deprecated: Use ErrorResponse(errors.Internal("message")) instead.
+// The errors package provides richer error context including caller info,
+// stack traces, and error chaining.
 func InternalError(message string) *Response {
 	if message == "" {
 		message = "An unexpected error occurred"

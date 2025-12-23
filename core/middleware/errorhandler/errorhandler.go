@@ -85,6 +85,11 @@ func (m *ErrorHandlerMiddleware) Handler() echo.MiddlewareFunc {
 			// Log the error with appropriate level
 			logError(log, fwkErr, devMode)
 
+			// Set Retry-After header if error is retryable with a delay
+			if fwkErr.Retryable && fwkErr.RetryAfter > 0 {
+				c.Response().Header().Set("Retry-After", strconv.Itoa(int(fwkErr.RetryAfter.Seconds())))
+			}
+
 			// Render HTTP response
 			resp := httpPkg.ErrorResponse(fwkErr)
 			return c.JSON(resp.HTTPStatus, resp)
@@ -130,14 +135,32 @@ func logError(log *logrus.Logger, err *errors.Error, devMode bool) {
 		}
 	}
 
-	// Log at appropriate level based on HTTP status
+	// Log at appropriate level based on error's LogLevel (if set) or HTTP status
 	entry := log.WithFields(fields)
-	switch {
-	case err.HTTPStatus >= 500:
-		entry.Errorf("HTTP %d: %s", err.HTTPStatus, err.Message)
-	case err.HTTPStatus >= 400:
-		entry.Warnf("HTTP %d: %s", err.HTTPStatus, err.Message)
+	msg := err.Message
+	if err.Cause != nil {
+		msg = err.Error() // Include cause in log message
+	}
+
+	// Use LogLevel from mapper if set, otherwise fall back to HTTP status
+	switch err.LogLevel {
+	case errors.LogLevelDebug:
+		entry.Debugf("HTTP %d: %s", err.HTTPStatus, msg)
+	case errors.LogLevelInfo:
+		entry.Infof("HTTP %d: %s", err.HTTPStatus, msg)
+	case errors.LogLevelWarn:
+		entry.Warnf("HTTP %d: %s", err.HTTPStatus, msg)
+	case errors.LogLevelError:
+		entry.Errorf("HTTP %d: %s", err.HTTPStatus, msg)
 	default:
-		entry.Infof("HTTP %d: %s", err.HTTPStatus, err.Message)
+		// Fall back to HTTP status-based log level
+		switch {
+		case err.HTTPStatus >= 500:
+			entry.Errorf("HTTP %d: %s", err.HTTPStatus, msg)
+		case err.HTTPStatus >= 400:
+			entry.Warnf("HTTP %d: %s", err.HTTPStatus, msg)
+		default:
+			entry.Infof("HTTP %d: %s", err.HTTPStatus, msg)
+		}
 	}
 }

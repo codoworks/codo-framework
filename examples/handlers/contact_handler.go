@@ -54,6 +54,7 @@ func (h *ContactHandler) Routes(g *echo.Group) {
 	g.PUT("/:id", http.WrapHandler(h.Update))
 	g.DELETE("/:id", http.WrapHandler(h.Delete))
 	g.POST("/:id/move", http.WrapHandler(h.Move))
+	g.POST("/batch/move", http.WrapHandler(h.BatchMove))
 }
 
 // List returns a paginated list of contacts
@@ -246,5 +247,48 @@ func (h *ContactHandler) Move(c *http.Context) error {
 	}
 
 	return c.Success(forms.NewContactResponse(contact))
+}
+
+// BatchMove moves multiple contacts to a group with partial failure handling
+// This demonstrates the warning system for batch operations where some items
+// may fail but the overall operation succeeds with warnings
+func (h *ContactHandler) BatchMove(c *http.Context) error {
+	var form forms.BatchMoveRequest
+	if err := c.BindAndValidate(&form); err != nil {
+		return c.SendError(err)
+	}
+
+	processed := 0
+	for _, contactID := range form.ContactIDs {
+		err := h.service.MoveToGroup(c.Request().Context(), contactID, form.GroupID)
+		if err != nil {
+			if err == db.ErrNotFound {
+				// Add warning for not found contacts instead of failing entire batch
+				c.AddWarning("CONTACT_NOT_FOUND", "Contact not found: "+contactID)
+				continue
+			}
+			// For other errors, add warning with details
+			c.AddWarningWithDetails("MOVE_FAILED", "Failed to move contact", map[string]any{
+				"contact_id": contactID,
+				"error":      err.Error(),
+			})
+			continue
+		}
+		processed++
+	}
+
+	// If nothing was processed and we have warnings, return a partial failure message
+	if processed == 0 && c.HasWarnings() {
+		return c.SendError(errors.BadRequest("No contacts were moved").
+			WithDetail("warnings_count", len(c.GetWarnings())))
+	}
+
+	// Return success with result and any accumulated warnings
+	result := forms.BatchResult{
+		Processed: processed,
+		Total:     len(form.ContactIDs),
+	}
+
+	return c.Success(result)
 }
 

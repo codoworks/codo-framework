@@ -10,6 +10,9 @@ import (
 	"github.com/codoworks/codo-framework/core/auth"
 )
 
+// ClientName is the name used to register the Kratos client
+const ClientName = "kratos"
+
 // ClientConfig holds Kratos client configuration
 type ClientConfig struct {
 	PublicURL  string
@@ -24,7 +27,12 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// NewClient creates a new Kratos client
+// New creates a new Kratos client for registration
+func New() *Client {
+	return &Client{}
+}
+
+// NewClient creates a new Kratos client with configuration
 func NewClient(cfg *ClientConfig) *Client {
 	timeout := cfg.Timeout
 	if timeout <= 0 {

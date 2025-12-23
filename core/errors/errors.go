@@ -14,6 +14,7 @@ import (
 // Set via SetCaptureConfig during initialization
 type CaptureConfig struct {
 	StackTraceOn5xx bool // Whether to capture stack traces for 5xx errors
+	StackTraceOn4xx bool // Whether to capture stack traces for 4xx errors (dev mode)
 	StackTraceDepth int  // How many stack frames to capture
 	AutoDetectPhase bool // Whether to auto-detect lifecycle phase from package name
 }
@@ -115,8 +116,13 @@ type Error struct {
 	RequestCtx *RequestContext `json:"requestContext,omitempty"`
 
 	// Rendering hints
-	UserMessage string `json:"userMessage,omitempty"`
-	Internal    bool   `json:"-"`
+	UserMessage string   `json:"userMessage,omitempty"`
+	Internal    bool     `json:"-"`
+	LogLevel    LogLevel `json:"-"` // Logging level from mapper (debug/info/warn/error)
+
+	// Retry hints
+	Retryable  bool          `json:"retryable,omitempty"`  // Whether the operation can be retried
+	RetryAfter time.Duration `json:"-"`                     // Suggested delay before retry
 }
 
 // Error implements the error interface.
@@ -180,6 +186,20 @@ func (e *Error) MarkInternal() *Error {
 	return e
 }
 
+// WithRetry sets retry hints for the error and returns the error for chaining.
+// Use this for transient errors where the operation may succeed on retry.
+// Example: errors.Unavailable("Database connection failed").WithRetry(true, 5*time.Second)
+func (e *Error) WithRetry(retryable bool, retryAfter time.Duration) *Error {
+	e.Retryable = retryable
+	e.RetryAfter = retryAfter
+	return e
+}
+
+// IsRetryable returns whether the error indicates a retryable operation.
+func (e *Error) IsRetryable() bool {
+	return e.Retryable
+}
+
 // captureCallerInfo captures information about where the error was created
 func captureCallerInfo(skip int) *CallerInfo {
 	pc, file, line, ok := runtime.Caller(skip)
@@ -233,27 +253,52 @@ func captureStackTrace(skip int) []StackFrame {
 }
 
 // detectPhaseFromPackage attempts to detect the phase from package name
+// Uses segment-based matching to avoid false positives (e.g., "myapp/services-util" won't match "/services")
 func detectPhaseFromPackage(pkg string) Phase {
-	switch {
-	case strings.Contains(pkg, "/core/app"):
-		return PhaseBootstrap
-	case strings.Contains(pkg, "/core/config"):
-		return PhaseConfig
-	case strings.Contains(pkg, "/core/clients"):
-		return PhaseClient
-	case strings.Contains(pkg, "/core/db"):
-		return PhaseRepository
-	case strings.Contains(pkg, "/core/middleware"):
-		return PhaseMiddleware
-	case strings.Contains(pkg, "/handlers"):
-		return PhaseHandler
-	case strings.Contains(pkg, "/services"):
-		return PhaseService
-	case strings.Contains(pkg, "/repositories"):
-		return PhaseRepository
-	default:
-		return ""
+	// Split the package path into segments
+	segments := strings.Split(pkg, "/")
+
+	// Check each segment for exact matches
+	for i, seg := range segments {
+		switch seg {
+		case "app":
+			// Only match if it's core/app (framework bootstrap)
+			if i > 0 && segments[i-1] == "core" {
+				return PhaseBootstrap
+			}
+		case "config":
+			// Only match if it's core/config (framework config)
+			if i > 0 && segments[i-1] == "core" {
+				return PhaseConfig
+			}
+		case "clients":
+			// Only match if it's core/clients (framework clients)
+			if i > 0 && segments[i-1] == "core" {
+				return PhaseClient
+			}
+		case "db":
+			// Only match if it's core/db (framework database)
+			if i > 0 && segments[i-1] == "core" {
+				return PhaseRepository
+			}
+		case "middleware":
+			// Only match if it's core/middleware (framework middleware)
+			if i > 0 && segments[i-1] == "core" {
+				return PhaseMiddleware
+			}
+		case "handlers":
+			// Match any "handlers" package (consumer convention)
+			return PhaseHandler
+		case "services":
+			// Match any "services" package (consumer convention)
+			return PhaseService
+		case "repositories":
+			// Match any "repositories" package (consumer convention)
+			return PhaseRepository
+		}
 	}
+
+	return ""
 }
 
 // extractPackage extracts the package path from a function name
@@ -299,8 +344,14 @@ func New(code, message string, httpStatus int) *Error {
 		err.Phase = detectPhaseFromPackage(err.Caller.Package)
 	}
 
-	// Capture stack trace for 5xx errors (if enabled)
+	// Capture stack trace based on config and HTTP status
+	shouldCaptureStackTrace := false
 	if cfg.StackTraceOn5xx && httpStatus >= 500 {
+		shouldCaptureStackTrace = true
+	} else if cfg.StackTraceOn4xx && httpStatus >= 400 && httpStatus < 500 {
+		shouldCaptureStackTrace = true
+	}
+	if shouldCaptureStackTrace {
 		err.StackTrace = captureStackTrace(2)
 	}
 

@@ -45,6 +45,7 @@ func configureErrorHandling(cfg *config.Config) {
 	// Configure error capture behavior
 	errors.SetCaptureConfig(errors.CaptureConfig{
 		StackTraceOn5xx: cfg.Errors.Capture.StackTraceOn5xx,
+		StackTraceOn4xx: cfg.Errors.Capture.StackTraceOn4xx,
 		StackTraceDepth: cfg.Errors.Capture.StackTraceDepth,
 		AutoDetectPhase: cfg.Errors.Capture.AutoDetectPhase,
 	})
