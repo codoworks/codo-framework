@@ -216,7 +216,7 @@ func captureCallerInfo(skip int) *CallerInfo {
 	pkg := extractPackage(fnName)
 
 	return &CallerInfo{
-		File:     filepath.Base(file),
+		File:     toModuleRelativePath(file),
 		Line:     line,
 		Function: extractFunctionName(fnName),
 		Package:  pkg,
@@ -243,7 +243,7 @@ func captureStackTrace(skip int) []StackFrame {
 
 		file, line := fn.FileLine(pcs[i])
 		frames = append(frames, StackFrame{
-			File:     filepath.Base(file),
+			File:     toModuleRelativePath(file),
 			Line:     line,
 			Function: extractFunctionName(fn.Name()),
 		})
@@ -322,6 +322,32 @@ func extractFunctionName(fnName string) string {
 	// Get everything after last slash
 	parts := strings.Split(fnName, "/")
 	return parts[len(parts)-1]
+}
+
+// toModuleRelativePath converts an absolute file path to a module-relative path
+// for better IDE navigation. Shows "github.com/user/repo/pkg/file.go" instead of
+// just "file.go" or the full absolute path.
+func toModuleRelativePath(file string) string {
+	// Try to find common module path markers
+	// This makes paths portable across machines and easier to navigate in IDEs
+	if idx := strings.Index(file, "github.com/"); idx >= 0 {
+		return file[idx:]
+	}
+	if idx := strings.Index(file, "gitlab.com/"); idx >= 0 {
+		return file[idx:]
+	}
+	if idx := strings.Index(file, "bitbucket.org/"); idx >= 0 {
+		return file[idx:]
+	}
+	// For local modules, try to find /src/ or /go/src/ prefix
+	if idx := strings.LastIndex(file, "/go/src/"); idx >= 0 {
+		return file[idx+8:] // Skip "/go/src/"
+	}
+	if idx := strings.LastIndex(file, "/src/"); idx >= 0 {
+		return file[idx+5:] // Skip "/src/"
+	}
+	// Fallback: return just the base filename
+	return filepath.Base(file)
 }
 
 // New creates a new error with custom code, message, and HTTP status.

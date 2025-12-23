@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/codoworks/codo-framework/core/auth"
 	"github.com/codoworks/codo-framework/core/clients"
 	"github.com/codoworks/codo-framework/core/config"
+	"github.com/codoworks/codo-framework/core/errors"
 	"github.com/codoworks/codo-framework/core/middleware"
 )
 
@@ -175,10 +175,8 @@ func (m *AuthMiddleware) Handler() echo.MiddlewareFunc {
 			// Get session cookie
 			cookie, err := c.Cookie(kratosClient.GetCookieName())
 			if err != nil {
-				return c.JSON(http.StatusUnauthorized, map[string]string{
-					"code":    "UNAUTHORIZED",
-					"message": "No session cookie",
-				})
+				return errors.Unauthorized("No session cookie").
+					WithPhase(errors.PhaseMiddleware)
 			}
 
 			var identity *auth.Identity
@@ -207,10 +205,8 @@ func (m *AuthMiddleware) Handler() echo.MiddlewareFunc {
 						message = "Session expired"
 					}
 
-					return c.JSON(http.StatusUnauthorized, map[string]string{
-						"code":    "UNAUTHORIZED",
-						"message": message,
-					})
+					return errors.Unauthorized(message).
+						WithPhase(errors.PhaseMiddleware)
 				}
 
 				// Store in cache if enabled

@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"reflect"
 	"strings"
@@ -71,7 +70,7 @@ func (r *Repository[T]) Create(ctx context.Context, model T) error {
 	query, _ := r.buildInsertQuery(model)
 	_, err := r.client.db.NamedExecContext(ctx, query, model)
 	if err != nil {
-		return fmt.Errorf("create failed: %w", err)
+		return WrapDBError(err, "create")
 	}
 
 	// Run after create hooks
@@ -105,7 +104,7 @@ func (r *Repository[T]) Update(ctx context.Context, model T) error {
 	query, _ := r.buildUpdateQuery(model)
 	result, err := r.client.db.NamedExecContext(ctx, query, model)
 	if err != nil {
-		return fmt.Errorf("update failed: %w", err)
+		return WrapDBError(err, "update")
 	}
 
 	rows, err := result.RowsAffected()
@@ -152,7 +151,7 @@ func (r *Repository[T]) Delete(ctx context.Context, model T) error {
 
 	result, err := r.client.db.ExecContext(ctx, query, time.Now(), id)
 	if err != nil {
-		return fmt.Errorf("delete failed: %w", err)
+		return WrapDBError(err, "delete")
 	}
 
 	rows, err := result.RowsAffected()
@@ -193,7 +192,7 @@ func (r *Repository[T]) HardDelete(ctx context.Context, model T) error {
 
 	result, err := r.client.db.ExecContext(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("hard delete failed: %w", err)
+		return WrapDBError(err, "hard delete")
 	}
 
 	rows, err := result.RowsAffected()
@@ -224,7 +223,7 @@ func (r *Repository[T]) Restore(ctx context.Context, model T) error {
 
 	result, err := r.client.db.ExecContext(ctx, query, time.Now(), id)
 	if err != nil {
-		return fmt.Errorf("restore failed: %w", err)
+		return WrapDBError(err, "restore")
 	}
 
 	rows, err := result.RowsAffected()
@@ -255,10 +254,7 @@ func (r *Repository[T]) FindByID(ctx context.Context, id string) (*Record[T], er
 
 	err := r.client.db.GetContext(ctx, modelPtr, query, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("find by id failed: %w", err)
+		return nil, WrapDBError(err, "find by id")
 	}
 
 	typedModel := modelPtr.(T)
@@ -286,7 +282,7 @@ func (r *Repository[T]) FindAll(ctx context.Context, opts ...QueryOption) ([]*Re
 
 	err := r.client.db.SelectContext(ctx, modelsPtr.Interface(), query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("find all failed: %w", err)
+		return nil, WrapDBError(err, "find all")
 	}
 
 	models := modelsPtr.Elem()
@@ -339,7 +335,7 @@ func (r *Repository[T]) Count(ctx context.Context, opts ...QueryOption) (int64, 
 	var count int64
 	err := r.client.db.GetContext(ctx, &count, query, args...)
 	if err != nil {
-		return 0, fmt.Errorf("count failed: %w", err)
+		return 0, WrapDBError(err, "count")
 	}
 
 	return count, nil
@@ -353,7 +349,7 @@ func (r *Repository[T]) Exists(ctx context.Context, id string) (bool, error) {
 	var exists bool
 	err := r.client.db.GetContext(ctx, &exists, query, id)
 	if err != nil {
-		return false, fmt.Errorf("exists check failed: %w", err)
+		return false, WrapDBError(err, "exists check")
 	}
 
 	return exists, nil
@@ -389,7 +385,7 @@ func (r *Repository[T]) DeleteWhere(ctx context.Context, opts ...QueryOption) (i
 
 	result, err := r.client.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return 0, fmt.Errorf("delete where failed: %w", err)
+		return 0, WrapDBError(err, "delete where")
 	}
 
 	return result.RowsAffected()
@@ -430,7 +426,7 @@ func (r *Repository[T]) UpdateWhere(ctx context.Context, updates map[string]any,
 
 	result, err := r.client.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return 0, fmt.Errorf("update where failed: %w", err)
+		return 0, WrapDBError(err, "update where")
 	}
 
 	return result.RowsAffected()
@@ -615,7 +611,7 @@ func (r *TxRepository[T]) Create(ctx context.Context, model T) error {
 	query, _ := r.repo.buildInsertQuery(model)
 	_, err := r.tx.NamedExecContext(ctx, query, model)
 	if err != nil {
-		return fmt.Errorf("create failed: %w", err)
+		return WrapDBError(err, "create")
 	}
 
 	return RunAfterCreateHooks(model)
@@ -634,7 +630,7 @@ func (r *TxRepository[T]) Update(ctx context.Context, model T) error {
 	query, _ := r.repo.buildUpdateQuery(model)
 	result, err := r.tx.NamedExecContext(ctx, query, model)
 	if err != nil {
-		return fmt.Errorf("update failed: %w", err)
+		return WrapDBError(err, "update")
 	}
 
 	rows, err := result.RowsAffected()
@@ -658,10 +654,7 @@ func (r *TxRepository[T]) FindByID(ctx context.Context, id string) (*Record[T], 
 
 	err := r.tx.GetContext(ctx, modelPtr, query, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrNotFound
-		}
-		return nil, fmt.Errorf("find by id failed: %w", err)
+		return nil, WrapDBError(err, "find by id")
 	}
 
 	typedModel := modelPtr.(T)

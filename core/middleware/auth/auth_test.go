@@ -9,11 +9,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/codoworks/codo-framework/clients/kratos"
 	codoauth "github.com/codoworks/codo-framework/core/auth"
 	"github.com/codoworks/codo-framework/core/clients"
 	"github.com/codoworks/codo-framework/core/config"
+	"github.com/codoworks/codo-framework/core/errors"
 	"github.com/codoworks/codo-framework/core/middleware"
-	"github.com/codoworks/codo-framework/clients/kratos"
 )
 
 func setupAuthMiddleware(t *testing.T, mockKratos *kratos.MockClient, cfg *config.AuthMiddlewareConfig) (*AuthMiddleware, error) {
@@ -39,6 +40,30 @@ func setupAuthMiddleware(t *testing.T, mockKratos *kratos.MockClient, cfg *confi
 	}
 
 	return m, nil
+}
+
+// newEchoWithErrorHandler creates an Echo instance with a custom error handler
+// that properly renders framework errors (since auth middleware now returns them)
+func newEchoWithErrorHandler() *echo.Echo {
+	e := echo.New()
+	e.HTTPErrorHandler = func(err error, c echo.Context) {
+		if c.Response().Committed {
+			return
+		}
+
+		// Handle framework errors
+		if fwkErr, ok := err.(*errors.Error); ok {
+			c.JSON(fwkErr.HTTPStatus, map[string]string{
+				"code":    fwkErr.Code,
+				"message": fwkErr.Message,
+			})
+			return
+		}
+
+		// Fall back to default
+		e.DefaultHTTPErrorHandler(err, c)
+	}
+	return e
 }
 
 func TestAuthMiddleware_ValidSession(t *testing.T) {
@@ -96,7 +121,7 @@ func TestAuthMiddleware_NoSession(t *testing.T) {
 
 	handler := m.Handler()
 
-	e := echo.New()
+	e := newEchoWithErrorHandler()
 	e.Use(handler)
 	e.GET("/test", func(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")
@@ -129,7 +154,7 @@ func TestAuthMiddleware_InvalidSession(t *testing.T) {
 
 	handler := m.Handler()
 
-	e := echo.New()
+	e := newEchoWithErrorHandler()
 	e.Use(handler)
 	e.GET("/test", func(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")
@@ -162,7 +187,7 @@ func TestAuthMiddleware_ExpiredSession(t *testing.T) {
 
 	handler := m.Handler()
 
-	e := echo.New()
+	e := newEchoWithErrorHandler()
 	e.Use(handler)
 	e.GET("/test", func(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")
@@ -308,7 +333,7 @@ func TestAuthMiddleware_DevMode_Disabled(t *testing.T) {
 
 	handler := m.Handler()
 
-	e := echo.New()
+	e := newEchoWithErrorHandler()
 	e.Use(handler)
 	e.GET("/test", func(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")
@@ -338,7 +363,7 @@ func TestAuthMiddleware_DevMode_NilIdentity(t *testing.T) {
 
 	handler := m.Handler()
 
-	e := echo.New()
+	e := newEchoWithErrorHandler()
 	e.Use(handler)
 	e.GET("/test", func(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")

@@ -1,17 +1,19 @@
 package errorhandler
 
 import (
+	"net/url"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/codoworks/codo-framework/clients/logger"
+	"github.com/codoworks/codo-framework/core/auth"
 	"github.com/codoworks/codo-framework/core/clients"
 	"github.com/codoworks/codo-framework/core/config"
 	"github.com/codoworks/codo-framework/core/errors"
-	"github.com/codoworks/codo-framework/core/middleware"
 	httpPkg "github.com/codoworks/codo-framework/core/http"
+	"github.com/codoworks/codo-framework/core/middleware"
 )
 
 func init() {
@@ -81,6 +83,19 @@ func (m *ErrorHandlerMiddleware) Handler() echo.MiddlewareFunc {
 				Path:       c.Request().URL.Path,
 				RemoteAddr: c.RealIP(),
 			}
+
+			// Add user identity if available (from auth middleware)
+			if identity, err := auth.GetIdentity(c); err == nil && identity != nil {
+				fwkErr.RequestCtx.UserID = identity.ID
+			}
+
+			// Add query parameters if present
+			if c.Request().URL.RawQuery != "" {
+				fwkErr.RequestCtx.Query = parseQueryToMap(c.Request().URL.Query())
+			}
+
+			// Add safe headers (exclude sensitive ones like Authorization, Cookie)
+			fwkErr.RequestCtx.Headers = captureSafeHeaders(c)
 
 			// Log the error with appropriate level
 			logError(log, fwkErr, devMode)
@@ -163,4 +178,42 @@ func logError(log *logrus.Logger, err *errors.Error, devMode bool) {
 			entry.Infof("HTTP %d: %s", err.HTTPStatus, msg)
 		}
 	}
+}
+
+// parseQueryToMap converts URL query values to a simple string map
+// (takes first value for each key to avoid large logs)
+func parseQueryToMap(values url.Values) map[string]string {
+	result := make(map[string]string)
+	for k, v := range values {
+		if len(v) > 0 {
+			result[k] = v[0]
+		}
+	}
+	return result
+}
+
+// captureSafeHeaders captures only safe headers (excludes sensitive ones)
+func captureSafeHeaders(c echo.Context) map[string]string {
+	safeHeaders := []string{
+		"User-Agent",
+		"Accept",
+		"Accept-Language",
+		"Accept-Encoding",
+		"Content-Type",
+		"Content-Length",
+		"Origin",
+		"Referer",
+	}
+
+	headers := make(map[string]string)
+	for _, h := range safeHeaders {
+		if v := c.Request().Header.Get(h); v != "" {
+			headers[h] = v
+		}
+	}
+
+	if len(headers) == 0 {
+		return nil
+	}
+	return headers
 }
