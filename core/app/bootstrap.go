@@ -58,6 +58,9 @@ func Bootstrap(cfg *config.Config, opts BootstrapOptions) (BaseApp, error) {
 	case RouteInspector:
 		return bootstrapRouteInspector(cfg, opts)
 
+	case ConfigInspector:
+		return bootstrapConfigInspector(cfg, opts)
+
 	default:
 		return nil, errors.BadRequest("Unknown bootstrap mode").
 			WithPhase(errors.PhaseBootstrap).
@@ -86,6 +89,9 @@ func validateOptions(opts BootstrapOptions) error {
 				WithPhase(errors.PhaseBootstrap).
 				WithDetail("mode", opts.Mode.String())
 		}
+
+	case ConfigInspector:
+		// No special requirements - all options are optional
 	}
 
 	return nil

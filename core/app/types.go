@@ -39,6 +39,15 @@ const (
 	// - Registers all routes for display
 	// - Used by `info routes` command
 	RouteInspector
+
+	// ConfigInspector bootstraps for configuration introspection
+	// - Loads config (YAML + defaults + .env + env overrides)
+	// - Initializes EnvVarRegistry (if registrar provided)
+	// - NO client initialization
+	// - NO migrations
+	// - NO HTTP server
+	// - Used by `info env` command
+	ConfigInspector
 )
 
 // String returns the mode name for logging
@@ -52,6 +61,8 @@ func (m AppMode) String() string {
 		return "WorkerDaemon"
 	case RouteInspector:
 		return "RouteInspector"
+	case ConfigInspector:
+		return "ConfigInspector"
 	default:
 		return "Unknown"
 	}
@@ -177,6 +188,15 @@ type DaemonApp interface {
 
 	// Stop stops all workers
 	Stop(ctx context.Context) error
+}
+
+// ConfigApp extends BaseApp for config inspection mode
+type ConfigApp interface {
+	BaseApp
+
+	// EnvRegistry returns the resolved environment variable registry
+	// Returns nil if no EnvVarRegistrar was provided during bootstrap
+	EnvRegistry() *config.EnvVarRegistry
 }
 
 // Worker represents a background worker process
