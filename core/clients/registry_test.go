@@ -48,18 +48,10 @@ func TestMustRegister(t *testing.T) {
 	})
 }
 
-func TestMustRegister_Panics(t *testing.T) {
-	setupTest(t)
-
-	client1 := newMockClient("panic-test")
-	client2 := newMockClient("panic-test")
-
-	MustRegister(client1)
-
-	assert.Panics(t, func() {
-		MustRegister(client2)
-	})
-}
+// Note: TestMustRegister_Panics was removed because MustRegister now calls
+// os.Exit(1) instead of panic() for cleaner error output. Testing os.Exit
+// requires subprocess spawning which adds complexity. The error behavior
+// is verified by the duplicate registration test in TestRegister_Duplicate.
 
 func TestGet(t *testing.T) {
 	setupTest(t)
@@ -96,13 +88,9 @@ func TestMustGet(t *testing.T) {
 	assert.Equal(t, expected, client)
 }
 
-func TestMustGet_Panics(t *testing.T) {
-	setupTest(t)
-
-	assert.Panics(t, func() {
-		MustGet("nonexistent")
-	})
-}
+// Note: TestMustGet_Panics was removed because MustGet now calls
+// os.Exit(1) instead of panic() for cleaner error output. The error behavior
+// is verified by TestGet_NotFound which tests the underlying Get function.
 
 func TestHas(t *testing.T) {
 	setupTest(t)
@@ -178,25 +166,10 @@ func TestMustGetTyped(t *testing.T) {
 	assert.Equal(t, expected, client)
 }
 
-func TestMustGetTyped_Panics(t *testing.T) {
-	setupTest(t)
-
-	t.Run("not found", func(t *testing.T) {
-		assert.Panics(t, func() {
-			MustGetTyped[*typedMockClient]("nonexistent")
-		})
-	})
-
-	t.Run("wrong type", func(t *testing.T) {
-		setupTest(t)
-		regularClient := newMockClient("regular")
-		Register(regularClient)
-
-		assert.Panics(t, func() {
-			MustGetTyped[*typedMockClient]("regular")
-		})
-	})
-}
+// Note: TestMustGetTyped_Panics was removed because MustGetTyped now calls
+// os.Exit(1) instead of panic() for cleaner error output. The error behavior
+// is verified by TestGetTyped_NotFound and TestGetTyped_WrongType which test
+// the underlying GetTyped function.
 
 func TestAll(t *testing.T) {
 	setupTest(t)

@@ -9,8 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/codoworks/codo-framework/clients/logger"
 	"github.com/codoworks/codo-framework/cmd"
 	"github.com/codoworks/codo-framework/core/app"
+	"github.com/codoworks/codo-framework/core/clients"
 	"github.com/codoworks/codo-framework/core/errors"
 	"github.com/codoworks/codo-framework/core/http"
 )
@@ -57,12 +59,15 @@ var publicCmd = &cobra.Command{
 		}
 		router := routerApp.Router()
 
+		// Get logger for startup messages
+		log := clients.MustGetTyped[*logger.Logger](logger.ClientName)
+
 		// Setup graceful shutdown
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
 		go func() {
-			fmt.Fprintf(cmd.GetOutput(), "Starting Public API on http://localhost%s\n", cfg.Server.PublicAddr())
+			log.Infof("Starting Public API on http://localhost%s", cfg.Server.PublicAddr())
 			if err := router.Start(); err != nil {
 				frameworkErr := errors.Unavailable("Server failed to start").
 					WithCause(err).
@@ -74,7 +79,7 @@ var publicCmd = &cobra.Command{
 
 		<-ctx.Done()
 
-		fmt.Fprintln(cmd.GetOutput(), "\nShutting down...")
+		log.Info("Shutting down...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownGrace.Duration())
 		defer cancel()
 

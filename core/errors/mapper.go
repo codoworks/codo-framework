@@ -135,6 +135,12 @@ func (m *ErrorMapper) MapError(err error) *Error {
 		return e
 	}
 
+	// Check if error contains a buried framework error (wrapped by fmt.Errorf, etc.)
+	// This preserves the original caller info from where the error was created
+	if embedded := findEmbeddedError(err); embedded != nil {
+		return embedded
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -189,6 +195,28 @@ func (m *ErrorMapper) createFromSpec(err error, spec MappingSpec) *Error {
 	e := Wrap(err, spec.Code, msg, spec.HTTPStatus)
 	e.LogLevel = spec.LogLevel
 	return e
+}
+
+// findEmbeddedError walks the error chain to find any embedded framework *Error.
+// This is used to find framework errors that have been wrapped by fmt.Errorf or similar.
+// Returns nil if no framework error is found in the chain.
+func findEmbeddedError(err error) *Error {
+	current := err
+	for current != nil {
+		if e, ok := current.(*Error); ok {
+			return e
+		}
+		// Try to unwrap
+		type unwrapper interface {
+			Unwrap() error
+		}
+		if u, ok := current.(unwrapper); ok {
+			current = u.Unwrap()
+		} else {
+			break
+		}
+	}
+	return nil
 }
 
 // isError checks if an error matches a target (similar to errors.Is but simpler)

@@ -1,8 +1,10 @@
 package middleware
 
 import (
-	"fmt"
+	"os"
 	"sync"
+
+	"github.com/codoworks/codo-framework/core/errors"
 )
 
 // Registry holds all registered middleware
@@ -18,14 +20,18 @@ var globalRegistry = &Registry{
 
 // RegisterMiddleware registers a middleware in the global registry
 // This is typically called from init() functions in middleware packages
-// Panics if a middleware with the same name is already registered
+// Exits with error if a middleware with the same name is already registered
 func RegisterMiddleware(m Middleware) {
 	globalRegistry.mu.Lock()
 	defer globalRegistry.mu.Unlock()
 
 	name := m.Name()
 	if _, exists := globalRegistry.middlewares[name]; exists {
-		panic(fmt.Sprintf("middleware %q already registered", name))
+		frameworkErr := errors.Conflict("Middleware already registered").
+			WithPhase(errors.PhaseMiddleware).
+			WithDetail("middleware_name", name)
+		errors.RenderCLI(frameworkErr)
+		os.Exit(1)
 	}
 
 	globalRegistry.middlewares[name] = m

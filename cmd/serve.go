@@ -9,7 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/codoworks/codo-framework/clients/logger"
 	"github.com/codoworks/codo-framework/core/app"
+	"github.com/codoworks/codo-framework/core/clients"
 	"github.com/codoworks/codo-framework/core/errors"
 )
 
@@ -48,15 +50,18 @@ var serveCmd = &cobra.Command{
 		}
 		server := httpApp.Server()
 
+		// Get logger for startup messages
+		log := clients.MustGetTyped[*logger.Logger](logger.ClientName)
+
 		// Setup graceful shutdown
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
 		go func() {
-			fmt.Fprintf(GetOutput(), "Starting servers...\n")
-			fmt.Fprintf(GetOutput(), "  Public API:    http://localhost%s\n", cfg.Server.PublicAddr())
-			fmt.Fprintf(GetOutput(), "  Protected API: http://localhost%s\n", cfg.Server.ProtectedAddr())
-			fmt.Fprintf(GetOutput(), "  Hidden API:    http://localhost%s\n", cfg.Server.HiddenAddr())
+			log.Info("Starting servers...")
+			log.Infof("Public API: http://localhost%s", cfg.Server.PublicAddr())
+			log.Infof("Protected API: http://localhost%s", cfg.Server.ProtectedAddr())
+			log.Infof("Hidden API: http://localhost%s", cfg.Server.HiddenAddr())
 
 			if err := server.Start(); err != nil {
 				frameworkErr := errors.Unavailable("Server failed to start").
@@ -69,7 +74,7 @@ var serveCmd = &cobra.Command{
 
 		<-ctx.Done()
 
-		fmt.Fprintln(GetOutput(), "\nShutting down...")
+		log.Info("Shutting down...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownGrace.Duration())
 		defer cancel()
 

@@ -2,6 +2,7 @@ package clients
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/codoworks/codo-framework/core/errors"
@@ -40,7 +41,7 @@ func MustRegister(client Client) {
 			WithPhase(errors.PhaseClient).
 			WithDetail("client_name", client.Name())
 		errors.RenderCLI(frameworkErr)
-		panic(frameworkErr)
+		os.Exit(1)
 	}
 }
 
@@ -59,7 +60,7 @@ func MustGet(name string) Client {
 			WithPhase(errors.PhaseClient).
 			WithDetail("client_name", name)
 		errors.RenderCLI(frameworkErr)
-		panic(frameworkErr)
+		os.Exit(1)
 	}
 	return client
 }
@@ -103,7 +104,7 @@ func MustGetTyped[T Client](name string) T {
 				WithDetail("client_name", name)
 		}
 		errors.RenderCLI(frameworkErr)
-		panic(frameworkErr)
+		os.Exit(1)
 	}
 	return client
 }
@@ -154,7 +155,7 @@ func MustGetOptionalTyped[T Client](name string) (T, bool) {
 				WithDetail("client_name", name)
 		}
 		errors.RenderCLI(frameworkErr)
-		panic(frameworkErr)
+		os.Exit(1)
 	}
 	return client, found
 }

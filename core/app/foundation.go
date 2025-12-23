@@ -21,6 +21,13 @@ func initFoundation(cfg *config.Config, opts BootstrapOptions) (*foundation, err
 	// 0. Configure error handling from config
 	configureErrorHandling(cfg)
 
+	// 0.5. Validate consumer environment variables (if registrar provided)
+	if opts.EnvVarRegistrar != nil {
+		if err := initEnvVars(cfg, opts.EnvVarRegistrar); err != nil {
+			return nil, err
+		}
+	}
+
 	// 1. Register and initialize framework clients
 	if err := registerFrameworkClients(cfg); err != nil {
 		return nil, errors.WrapInternal(err, "Failed to register framework clients").
@@ -38,6 +45,43 @@ func initFoundation(cfg *config.Config, opts BootstrapOptions) (*foundation, err
 	return &foundation{
 		config: cfg,
 	}, nil
+}
+
+// initEnvVars initializes and validates consumer environment variables
+func initEnvVars(cfg *config.Config, registrar EnvVarRegistrar) error {
+	// Create the registry
+	registry := config.NewEnvVarRegistry()
+
+	// Call consumer's registrar to declare env var requirements
+	if err := registrar(registry); err != nil {
+		return errors.WrapInternal(err, "Failed to register environment variables").
+			WithPhase(errors.PhaseConfig)
+	}
+
+	// Collect env vars from registered clients that implement EnvConfigurable
+	clientEnvVars := clients.CollectEnvVarsFromClients()
+	for _, desc := range clientEnvVars {
+		if err := registry.Register(desc); err != nil {
+			// Ignore duplicate registration errors (consumer may have already registered)
+			// Log and continue
+			continue
+		}
+	}
+
+	// Resolve all registered env vars (read values, convert types, validate)
+	if err := registry.Resolve(); err != nil {
+		// Convert to framework error with proper formatting
+		if envErrs, ok := err.(config.EnvValidationErrors); ok {
+			return envErrs.ToFrameworkError()
+		}
+		return errors.WrapInternal(err, "Failed to resolve environment variables").
+			WithPhase(errors.PhaseConfig)
+	}
+
+	// Store resolved registry in config for access by clients and handlers
+	cfg.EnvRegistry = registry
+
+	return nil
 }
 
 // configureErrorHandling sets up the error handling configuration

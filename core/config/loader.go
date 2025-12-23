@@ -10,6 +10,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// loadDotEnvFile attempts to load a .env file from the current working directory.
+// It logs warnings for malformed files but does not fail - .env is optional.
+func loadDotEnvFile() {
+	result := LoadDotEnv()
+	if result.Error != nil {
+		// Log warning for malformed file (use stderr since logger may not exist)
+		fmt.Fprintf(os.Stderr, "Warning: .env file could not be parsed: %v\n", result.Error)
+	}
+	// Missing file is silent - .env is optional
+}
+
 // Default config file locations
 var defaultConfigPaths = []string{
 	"config/app.yaml",
@@ -28,6 +39,9 @@ func LoadFromReader(r io.Reader) (*Config, error) {
 
 	// Apply defaults to any missing values
 	cfg.ApplyDefaults()
+
+	// Load .env file (optional, silent on missing)
+	loadDotEnvFile()
 
 	if err := cfg.applyEnvOverrides(); err != nil {
 		return nil, err
@@ -79,6 +93,9 @@ func Load() (*Config, error) {
 
 	// Apply defaults to any missing values
 	cfg.ApplyDefaults()
+
+	// Load .env file (optional, silent on missing)
+	loadDotEnvFile()
 
 	// Apply environment overrides
 	if err := cfg.applyEnvOverrides(); err != nil {

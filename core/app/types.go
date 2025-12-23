@@ -71,6 +71,11 @@ type CustomClientInitializer func(cfg *config.Config) error
 // It receives a DaemonApp to register workers with
 type WorkerRegistrar func(daemon DaemonApp) error
 
+// EnvVarRegistrar is a function that registers consumer environment variable requirements
+// It is called during bootstrap before config loading to declare env var requirements
+// The registered env vars are validated and resolved before client initialization
+type EnvVarRegistrar func(registry *config.EnvVarRegistry) error
+
 // BootstrapOptions configures application bootstrap
 type BootstrapOptions struct {
 	// Mode determines what type of app to bootstrap
@@ -90,6 +95,11 @@ type BootstrapOptions struct {
 
 	// WorkerRegistrar registers background workers (required for WorkerDaemon mode)
 	WorkerRegistrar WorkerRegistrar
+
+	// EnvVarRegistrar registers consumer environment variable requirements (optional)
+	// Called during bootstrap to declare env vars that will be validated and resolved
+	// before client initialization. Resolved values are stored in Config.EnvRegistry.
+	EnvVarRegistrar EnvVarRegistrar
 }
 
 // Initializer is a function that returns bootstrap options for the consumer application.

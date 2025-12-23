@@ -43,14 +43,10 @@ func TestMustGetAdapter(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid driver panics", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("MustGetAdapter should panic for invalid driver")
-			}
-		}()
-		MustGetAdapter("unknown")
-	})
+	// Note: "invalid driver panics" test was removed because MustGetAdapter now
+	// calls os.Exit(1) instead of panic() for cleaner error output. The error
+	// behavior is verified by TestGetAdapter which tests that GetAdapter returns
+	// nil for invalid drivers.
 }
 
 func TestSupportedDrivers(t *testing.T) {

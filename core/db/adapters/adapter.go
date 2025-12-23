@@ -1,7 +1,9 @@
 package adapters
 
 import (
-	"fmt"
+	"os"
+
+	"github.com/codoworks/codo-framework/core/errors"
 )
 
 // Adapter defines the interface for database adapters
@@ -48,11 +50,16 @@ func GetAdapter(driver string) Adapter {
 	}
 }
 
-// MustGetAdapter returns the adapter or panics if not found
+// MustGetAdapter returns the adapter or exits with error if not found
 func MustGetAdapter(driver string) Adapter {
 	adapter := GetAdapter(driver)
 	if adapter == nil {
-		panic(fmt.Sprintf("unsupported database driver: %s", driver))
+		frameworkErr := errors.BadRequest("Unsupported database driver").
+			WithPhase(errors.PhaseBootstrap).
+			WithDetail("driver", driver).
+			WithDetail("supported_drivers", SupportedDrivers())
+		errors.RenderCLI(frameworkErr)
+		os.Exit(1)
 	}
 	return adapter
 }

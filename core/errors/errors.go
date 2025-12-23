@@ -223,6 +223,54 @@ func captureCallerInfo(skip int) *CallerInfo {
 	}
 }
 
+// errorInfraFiles are file suffixes that contain error infrastructure code.
+// These are skipped when capturing caller info to find the actual error origin.
+var errorInfraFiles = []string{
+	"/core/errors/errors.go",
+	"/core/errors/mapper.go",
+	"/core/errors/cli_renderer.go",
+}
+
+// captureCallerInfoSmart walks the stack to find the first non-infrastructure frame.
+// This is more robust than using a fixed skip count because it works regardless of
+// how many layers of error wrapping/mapping are involved.
+func captureCallerInfoSmart() *CallerInfo {
+	// Capture up to 20 frames - should be more than enough
+	pcs := make([]uintptr, 20)
+	n := runtime.Callers(1, pcs)
+
+	frames := runtime.CallersFrames(pcs[:n])
+	for {
+		frame, more := frames.Next()
+
+		// Skip frames in error infrastructure files
+		if !isInfrastructureFile(frame.File) {
+			return &CallerInfo{
+				File:     toModuleRelativePath(frame.File),
+				Line:     frame.Line,
+				Function: extractFunctionName(frame.Function),
+				Package:  extractPackage(frame.Function),
+			}
+		}
+
+		if !more {
+			break
+		}
+	}
+
+	return nil // Fallback if all frames are infrastructure
+}
+
+// isInfrastructureFile checks if a file path is an error infrastructure file
+func isInfrastructureFile(filePath string) bool {
+	for _, suffix := range errorInfraFiles {
+		if strings.HasSuffix(filePath, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 // captureStackTrace captures the current stack trace
 func captureStackTrace(skip int) []StackFrame {
 	cfg := GetCaptureConfig()
@@ -350,9 +398,10 @@ func toModuleRelativePath(file string) string {
 	return filepath.Base(file)
 }
 
-// New creates a new error with custom code, message, and HTTP status.
-// Automatically captures caller info, phase (if enabled), and stack trace (for 5xx if enabled).
-func New(code, message string, httpStatus int) *Error {
+// newWithSkip creates a new error with configurable caller skip depth.
+// The skip parameter is kept for stack trace capture but caller info uses smart walking.
+// This is used internally to ensure correct caller location regardless of call depth.
+func newWithSkip(code, message string, httpStatus int, skip int) *Error {
 	cfg := GetCaptureConfig()
 
 	err := &Error{
@@ -362,8 +411,8 @@ func New(code, message string, httpStatus int) *Error {
 		Timestamp:  time.Now(),
 	}
 
-	// Auto-capture caller (skip 2 frames: New + constructor)
-	err.Caller = captureCallerInfo(2)
+	// Use smart stack walking to find the first non-infrastructure caller
+	err.Caller = captureCallerInfoSmart()
 
 	// Auto-detect phase from package (if enabled)
 	if cfg.AutoDetectPhase && err.Caller != nil {
@@ -378,114 +427,126 @@ func New(code, message string, httpStatus int) *Error {
 		shouldCaptureStackTrace = true
 	}
 	if shouldCaptureStackTrace {
-		err.StackTrace = captureStackTrace(2)
+		err.StackTrace = captureStackTrace(skip)
 	}
 
 	return err
 }
 
+// New creates a new error with custom code, message, and HTTP status.
+// Automatically captures caller info, phase (if enabled), and stack trace (for 5xx if enabled).
+func New(code, message string, httpStatus int) *Error {
+	return newWithSkip(code, message, httpStatus, 3)
+}
+
 // Internal creates an internal server error.
 func Internal(msg string) *Error {
-	return New(CodeInternal, msg, http.StatusInternalServerError)
+	return newWithSkip(CodeInternal, msg, http.StatusInternalServerError, 3)
 }
 
 // NotFound creates a not found error.
 func NotFound(msg string) *Error {
-	return New(CodeNotFound, msg, http.StatusNotFound)
+	return newWithSkip(CodeNotFound, msg, http.StatusNotFound, 3)
 }
 
 // BadRequest creates a bad request error.
 func BadRequest(msg string) *Error {
-	return New(CodeBadRequest, msg, http.StatusBadRequest)
+	return newWithSkip(CodeBadRequest, msg, http.StatusBadRequest, 3)
 }
 
 // Unauthorized creates an unauthorized error.
 func Unauthorized(msg string) *Error {
-	return New(CodeUnauthorized, msg, http.StatusUnauthorized)
+	return newWithSkip(CodeUnauthorized, msg, http.StatusUnauthorized, 3)
 }
 
 // Forbidden creates a forbidden error.
 func Forbidden(msg string) *Error {
-	return New(CodeForbidden, msg, http.StatusForbidden)
+	return newWithSkip(CodeForbidden, msg, http.StatusForbidden, 3)
 }
 
 // Conflict creates a conflict error.
 func Conflict(msg string) *Error {
-	return New(CodeConflict, msg, http.StatusConflict)
+	return newWithSkip(CodeConflict, msg, http.StatusConflict, 3)
 }
 
 // Validation creates a validation error with a list of validation errors.
 func Validation(msg string, errs []string) *Error {
-	err := New(CodeValidation, msg, http.StatusUnprocessableEntity)
+	err := newWithSkip(CodeValidation, msg, http.StatusUnprocessableEntity, 3)
 	err.Details = map[string]any{"errors": errs}
 	return err
 }
 
 // Timeout creates a timeout error.
 func Timeout(msg string) *Error {
-	return New(CodeTimeout, msg, http.StatusRequestTimeout)
+	return newWithSkip(CodeTimeout, msg, http.StatusRequestTimeout, 3)
 }
 
 // Unavailable creates a service unavailable error.
 func Unavailable(msg string) *Error {
-	return New(CodeUnavailable, msg, http.StatusServiceUnavailable)
+	return newWithSkip(CodeUnavailable, msg, http.StatusServiceUnavailable, 3)
 }
 
 // MethodNotAllowed creates a method not allowed error.
 func MethodNotAllowed(msg string) *Error {
-	return New(CodeMethodNotAllowed, msg, http.StatusMethodNotAllowed)
+	return newWithSkip(CodeMethodNotAllowed, msg, http.StatusMethodNotAllowed, 3)
 }
 
 // Gone creates a gone error for permanently deleted resources.
 func Gone(msg string) *Error {
-	return New(CodeGone, msg, http.StatusGone)
+	return newWithSkip(CodeGone, msg, http.StatusGone, 3)
 }
 
 // PreconditionFailed creates a precondition failed error.
 func PreconditionFailed(msg string) *Error {
-	return New(CodePreconditionFailed, msg, http.StatusPreconditionFailed)
+	return newWithSkip(CodePreconditionFailed, msg, http.StatusPreconditionFailed, 3)
 }
 
 // UnsupportedMediaType creates an unsupported media type error.
 func UnsupportedMediaType(msg string) *Error {
-	return New(CodeUnsupportedMedia, msg, http.StatusUnsupportedMediaType)
+	return newWithSkip(CodeUnsupportedMedia, msg, http.StatusUnsupportedMediaType, 3)
 }
 
 // TooManyRequests creates a rate limiting error.
 func TooManyRequests(msg string) *Error {
-	return New(CodeTooManyRequests, msg, http.StatusTooManyRequests)
+	return newWithSkip(CodeTooManyRequests, msg, http.StatusTooManyRequests, 3)
 }
 
 // BadGateway creates a bad gateway error.
 func BadGateway(msg string) *Error {
-	return New(CodeBadGateway, msg, http.StatusBadGateway)
+	return newWithSkip(CodeBadGateway, msg, http.StatusBadGateway, 3)
 }
 
 // GatewayTimeout creates a gateway timeout error.
 func GatewayTimeout(msg string) *Error {
-	return New(CodeGatewayTimeout, msg, http.StatusGatewayTimeout)
+	return newWithSkip(CodeGatewayTimeout, msg, http.StatusGatewayTimeout, 3)
 }
 
 // Wrap wraps an existing error with a framework error.
 func Wrap(err error, code, message string, httpStatus int) *Error {
-	e := New(code, message, httpStatus)
+	e := newWithSkip(code, message, httpStatus, 3)
 	e.Cause = err
 	return e
 }
 
 // WrapInternal wraps an error as an internal error.
 func WrapInternal(err error, msg string) *Error {
-	return Internal(msg).WithCause(err)
+	e := newWithSkip(CodeInternal, msg, http.StatusInternalServerError, 3)
+	e.Cause = err
+	return e
 }
 
 // WrapNotFound wraps an error as a not found error.
 func WrapNotFound(err error, msg string) *Error {
-	return NotFound(msg).WithCause(err)
+	e := newWithSkip(CodeNotFound, msg, http.StatusNotFound, 3)
+	e.Cause = err
+	return e
 }
 
 // WrapBadRequest wraps an error as a bad request error.
 func WrapBadRequest(err error, msg string) *Error {
-	return BadRequest(msg).WithCause(err)
+	e := newWithSkip(CodeBadRequest, msg, http.StatusBadRequest, 3)
+	e.Cause = err
+	return e
 }
 
 // IsError checks if an error is a framework Error with a specific code.

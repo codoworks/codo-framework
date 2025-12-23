@@ -18,6 +18,11 @@ type Config struct {
 	// Extensions captures any additional app-specific config sections
 	// The ,inline tag merges unknown fields into this map instead of discarding them
 	Extensions map[string]interface{} `yaml:",inline"`
+
+	// EnvRegistry holds the resolved consumer environment variables
+	// This is populated during bootstrap if EnvVarRegistrar is provided
+	// Not loaded from YAML - programmatically set by the framework
+	EnvRegistry *EnvVarRegistry `yaml:"-" json:"-"`
 }
 
 // NewWithDefaults creates a new Config with all default values
