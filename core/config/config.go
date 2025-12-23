@@ -13,7 +13,7 @@ type Config struct {
 	Features   FeaturesConfig   `yaml:"features"`
 	Middleware MiddlewareConfig `yaml:"middleware"`
 	Errors     ErrorsConfig     `yaml:"errors"`
-	DevMode    bool             `yaml:"-"` // Not loaded from YAML
+	DevMode    bool             `yaml:"dev_mode"` // Loaded from YAML, overridable by env/CLI
 
 	// Extensions captures any additional app-specific config sections
 	// The ,inline tag merges unknown fields into this map instead of discarding them

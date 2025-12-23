@@ -48,9 +48,56 @@ func (i *Identity) Email() string {
 	return i.GetTraitString("email")
 }
 
-// Name returns the name trait if present
+// getNameMap extracts the nested name object from traits
+func (i *Identity) getNameMap() map[string]any {
+	val, ok := i.GetTrait("name")
+	if !ok {
+		return nil
+	}
+	if m, ok := val.(map[string]any); ok {
+		return m
+	}
+	return nil
+}
+
+// FirstName returns the first name from nested name.first trait
+func (i *Identity) FirstName() string {
+	m := i.getNameMap()
+	if m == nil {
+		return ""
+	}
+	if s, ok := m["first"].(string); ok {
+		return s
+	}
+	return ""
+}
+
+// LastName returns the last name from nested name.last trait
+func (i *Identity) LastName() string {
+	m := i.getNameMap()
+	if m == nil {
+		return ""
+	}
+	if s, ok := m["last"].(string); ok {
+		return s
+	}
+	return ""
+}
+
+// Name returns the full name (first + last) from nested name trait
 func (i *Identity) Name() string {
-	return i.GetTraitString("name")
+	first := i.FirstName()
+	last := i.LastName()
+	if first == "" && last == "" {
+		return ""
+	}
+	if first == "" {
+		return last
+	}
+	if last == "" {
+		return first
+	}
+	return first + " " + last
 }
 
 // MarshalJSON implements json.Marshaler

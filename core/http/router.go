@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -130,6 +131,27 @@ func (r *Router) Start() error {
 	}
 
 	if err := r.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
+}
+
+// Listen creates the network listener without serving.
+// This allows checking if the port is available before starting the server.
+// Use with Serve() for a two-phase startup that fails fast on port conflicts.
+func (r *Router) Listen() (net.Listener, error) {
+	return net.Listen("tcp", r.addr)
+}
+
+// Serve starts serving HTTP on an existing listener.
+// Use this with Listen() for two-phase startup.
+func (r *Router) Serve(ln net.Listener) error {
+	r.server = &http.Server{
+		Addr:    r.addr,
+		Handler: r.echo,
+	}
+
+	if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
 		return err
 	}
 	return nil

@@ -145,18 +145,39 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to register hidden handlers: %w", err)
 	}
 
+	// Phase 1: Bind all ports synchronously (fail fast)
+	// This ensures we detect port conflicts before starting any server.
+	publicLn, err := s.public.Listen()
+	if err != nil {
+		return fmt.Errorf("failed to bind public port %s: %w", s.public.Addr(), err)
+	}
+
+	protectedLn, err := s.protected.Listen()
+	if err != nil {
+		publicLn.Close()
+		return fmt.Errorf("failed to bind protected port %s: %w", s.protected.Addr(), err)
+	}
+
+	hiddenLn, err := s.hidden.Listen()
+	if err != nil {
+		publicLn.Close()
+		protectedLn.Close()
+		return fmt.Errorf("failed to bind hidden port %s: %w", s.hidden.Addr(), err)
+	}
+
+	// Phase 2: All ports bound successfully - now start serving (blocks)
 	g := new(errgroup.Group)
 
 	g.Go(func() error {
-		return s.public.Start()
+		return s.public.Serve(publicLn)
 	})
 
 	g.Go(func() error {
-		return s.protected.Start()
+		return s.protected.Serve(protectedLn)
 	})
 
 	g.Go(func() error {
-		return s.hidden.Start()
+		return s.hidden.Serve(hiddenLn)
 	})
 
 	return g.Wait()

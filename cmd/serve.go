@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codoworks/codo-framework/core/app"
+	"github.com/codoworks/codo-framework/core/errors"
 )
 
 var serveCmd = &cobra.Command{
@@ -58,7 +59,10 @@ var serveCmd = &cobra.Command{
 			fmt.Fprintf(GetOutput(), "  Hidden API:    http://localhost%s\n", cfg.Server.HiddenAddr())
 
 			if err := server.Start(); err != nil {
-				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+				frameworkErr := errors.Unavailable("Server failed to start").
+					WithCause(err).
+					WithPhase(errors.PhaseBootstrap)
+				errors.RenderCLI(frameworkErr)
 				stop()
 			}
 		}()

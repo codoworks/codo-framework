@@ -174,7 +174,13 @@ func (o *Orchestrator) getConfigSection(configKey string) any {
 	}
 
 	// Return the config value if found
+	// If it's a struct, return a pointer to it (middleware expect pointers)
 	if val.IsValid() && val.CanInterface() {
+		if val.Kind() == reflect.Struct {
+			ptr := reflect.New(val.Type())
+			ptr.Elem().Set(val)
+			return ptr.Interface()
+		}
 		return val.Interface()
 	}
 

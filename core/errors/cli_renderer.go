@@ -150,38 +150,85 @@ func RenderCLI(err error) {
 	fmt.Fprintln(os.Stderr)
 }
 
+// getUniqueMessage extracts the unique prefix from an error's message by stripping
+// any redundant suffix that matches the next error in the chain.
+// This prevents repetitive error chains like:
+//   → outer: middle: inner
+//   → middle: inner
+//   → inner
+// Instead showing:
+//   → outer
+//   → middle
+//   → inner
+func getUniqueMessage(current error, next error) string {
+	var currentMsg string
+	if e, ok := current.(*Error); ok {
+		currentMsg = e.Message
+	} else {
+		currentMsg = current.Error()
+	}
+
+	if next == nil {
+		return currentMsg
+	}
+
+	var nextMsg string
+	if e, ok := next.(*Error); ok {
+		nextMsg = e.Message
+	} else {
+		nextMsg = next.Error()
+	}
+
+	// Check if current message ends with next message (with common separators)
+	for _, sep := range []string{": ", " - ", " ", ""} {
+		suffix := sep + nextMsg
+		if strings.HasSuffix(currentMsg, suffix) {
+			prefix := strings.TrimSuffix(currentMsg, suffix)
+			if prefix != "" {
+				return prefix
+			}
+		}
+	}
+
+	return currentMsg
+}
+
+// getNextError returns the next error in the chain by unwrapping
+func getNextError(current error) error {
+	if e, ok := current.(*Error); ok {
+		return e.Cause
+	}
+	// Try to unwrap standard errors
+	type unwrapper interface {
+		Unwrap() error
+	}
+	if u, ok := current.(unwrapper); ok {
+		return u.Unwrap()
+	}
+	return nil
+}
+
 func renderErrorChain(err *Error, indent string, dimColor, valueColor *color.Color) {
 	current := err.Cause
 	depth := 0
 	cfg := GetCLIConfig()
 
 	for current != nil && depth < cfg.MaxChainDepth {
-		// For framework errors, show only the message to avoid redundant nested error strings
-		// (since Error() includes code + message + cause, which creates repetition)
-		if e, ok := current.(*Error); ok {
-			fmt.Fprintf(os.Stderr, "%s%s %s\n", indent, dimColor.Sprint("→"), valueColor.Sprint(e.Message))
-		} else {
-			fmt.Fprintf(os.Stderr, "%s%s %s\n", indent, dimColor.Sprint("→"), valueColor.Sprint(current.Error()))
-		}
+		// Get the next error to determine unique message prefix
+		next := getNextError(current)
 
-		// If it's our error type, show additional context
+		// Get unique message (strips redundant suffix that matches next error)
+		msg := getUniqueMessage(current, next)
+		fmt.Fprintf(os.Stderr, "%s%s %s\n", indent, dimColor.Sprint("→"), valueColor.Sprint(msg))
+
+		// If it's our error type, show additional context (caller location)
 		if e, ok := current.(*Error); ok {
 			if e.Caller != nil {
 				fmt.Fprintf(os.Stderr, "%s  %s %s:%d\n", indent, dimColor.Sprint("at"), dimColor.Sprint(e.Caller.File), e.Caller.Line)
 			}
-			current = e.Cause
-		} else {
-			// Try to unwrap
-			type unwrapper interface {
-				Unwrap() error
-			}
-			if u, ok := current.(unwrapper); ok {
-				current = u.Unwrap()
-			} else {
-				current = nil
-			}
 		}
 
+		current = next
 		depth++
 	}
 

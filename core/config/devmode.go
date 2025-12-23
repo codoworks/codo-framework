@@ -6,14 +6,10 @@ func (c *Config) DevModeOverrides() {
 		return
 	}
 
-	// In dev mode, we might want to:
-	// - Enable more verbose logging (handled by logger)
-	// - Relax CORS (handled by HTTP middleware)
-	// - Enable SQL logging (handled by DB client)
-	// - Show stack traces (handled by error handler)
-
-	// The config struct itself doesn't change,
-	// but other components check IsDevMode()
+	// Auto-enable auth middleware verbose logging in dev mode
+	// This links the --dev flag to auth middleware's dev_mode setting
+	// NOTE: dev_bypass_auth is NOT auto-enabled - it must be explicitly set
+	c.Middleware.Auth.DevMode = true
 }
 
 // SetDevMode sets the development mode flag

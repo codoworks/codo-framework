@@ -156,8 +156,10 @@ func (c *Config) applyEnvOverrides() error {
 		c.Auth.SessionCookie = val
 	}
 
-	// Dev mode
-	c.DevMode = v.GetBool("DEV_MODE")
+	// Dev mode - only override if explicitly set in environment
+	if v.IsSet("DEV_MODE") {
+		c.DevMode = v.GetBool("DEV_MODE")
+	}
 
 	// Load features from env
 	c.Features.LoadFromEnv()

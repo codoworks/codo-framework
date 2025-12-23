@@ -166,7 +166,7 @@ func (m *AuthMiddleware) Handler() echo.MiddlewareFunc {
 					log.WithFields(logrus.Fields{
 						"user_id":   devIdentity.ID,
 						"user_name": devIdentity.Name(),
-					}).Debug("[Auth] Dev bypass - using static identity")
+					}).Info("[Auth] Dev bypass - using static identity")
 				}
 				auth.SetIdentity(c, devIdentity)
 				return next(c)
@@ -193,7 +193,7 @@ func (m *AuthMiddleware) Handler() echo.MiddlewareFunc {
 							"user_id":   identity.ID,
 							"user_name": identity.Name(),
 							"cache":     "hit",
-						}).Debug("[Auth] Session validated from cache")
+						}).Info("[Auth] Session validated from cache")
 					}
 				}
 			}
@@ -226,9 +226,9 @@ func (m *AuthMiddleware) Handler() echo.MiddlewareFunc {
 					}
 					if cacheEnabled {
 						fields["cache"] = "miss"
-						log.WithFields(fields).Debug("[Auth] Session validated from Kratos")
+						log.WithFields(fields).Info("[Auth] Session validated from Kratos")
 					} else {
-						log.WithFields(fields).Debug("[Auth] Session validated")
+						log.WithFields(fields).Info("[Auth] Session validated")
 					}
 				}
 			}

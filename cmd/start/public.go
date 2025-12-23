@@ -11,6 +11,7 @@ import (
 
 	"github.com/codoworks/codo-framework/cmd"
 	"github.com/codoworks/codo-framework/core/app"
+	"github.com/codoworks/codo-framework/core/errors"
 	"github.com/codoworks/codo-framework/core/http"
 )
 
@@ -63,7 +64,10 @@ var publicCmd = &cobra.Command{
 		go func() {
 			fmt.Fprintf(cmd.GetOutput(), "Starting Public API on http://localhost%s\n", cfg.Server.PublicAddr())
 			if err := router.Start(); err != nil {
-				fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
+				frameworkErr := errors.Unavailable("Server failed to start").
+					WithCause(err).
+					WithPhase(errors.PhaseBootstrap)
+				errors.RenderCLI(frameworkErr)
 				stop()
 			}
 		}()

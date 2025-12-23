@@ -13,7 +13,10 @@ func TestIdentity_GetTrait(t *testing.T) {
 		ID: "user-123",
 		Traits: map[string]any{
 			"email": "test@example.com",
-			"name":  "Test User",
+			"name": map[string]any{
+				"first": "Test",
+				"last":  "User",
+			},
 		},
 	}
 
@@ -146,15 +149,101 @@ func TestIdentity_Email_Missing(t *testing.T) {
 	assert.Equal(t, "", identity.Email())
 }
 
+func TestIdentity_FirstName(t *testing.T) {
+	identity := &Identity{
+		ID: "user-123",
+		Traits: map[string]any{
+			"name": map[string]any{
+				"first": "John",
+				"last":  "Doe",
+			},
+		},
+	}
+
+	assert.Equal(t, "John", identity.FirstName())
+}
+
+func TestIdentity_FirstName_Missing(t *testing.T) {
+	identity := &Identity{
+		ID:     "user-123",
+		Traits: map[string]any{},
+	}
+
+	assert.Equal(t, "", identity.FirstName())
+}
+
+func TestIdentity_FirstName_NoNameTrait(t *testing.T) {
+	identity := &Identity{
+		ID: "user-123",
+		Traits: map[string]any{
+			"email": "test@example.com",
+		},
+	}
+
+	assert.Equal(t, "", identity.FirstName())
+}
+
+func TestIdentity_LastName(t *testing.T) {
+	identity := &Identity{
+		ID: "user-123",
+		Traits: map[string]any{
+			"name": map[string]any{
+				"first": "John",
+				"last":  "Doe",
+			},
+		},
+	}
+
+	assert.Equal(t, "Doe", identity.LastName())
+}
+
+func TestIdentity_LastName_Missing(t *testing.T) {
+	identity := &Identity{
+		ID:     "user-123",
+		Traits: map[string]any{},
+	}
+
+	assert.Equal(t, "", identity.LastName())
+}
+
 func TestIdentity_Name(t *testing.T) {
 	identity := &Identity{
 		ID: "user-123",
 		Traits: map[string]any{
-			"name": "Test User",
+			"name": map[string]any{
+				"first": "John",
+				"last":  "Doe",
+			},
 		},
 	}
 
-	assert.Equal(t, "Test User", identity.Name())
+	assert.Equal(t, "John Doe", identity.Name())
+}
+
+func TestIdentity_Name_FirstOnly(t *testing.T) {
+	identity := &Identity{
+		ID: "user-123",
+		Traits: map[string]any{
+			"name": map[string]any{
+				"first": "John",
+			},
+		},
+	}
+
+	assert.Equal(t, "John", identity.Name())
+}
+
+func TestIdentity_Name_LastOnly(t *testing.T) {
+	identity := &Identity{
+		ID: "user-123",
+		Traits: map[string]any{
+			"name": map[string]any{
+				"last": "Doe",
+			},
+		},
+	}
+
+	assert.Equal(t, "Doe", identity.Name())
 }
 
 func TestIdentity_Name_Missing(t *testing.T) {
@@ -171,7 +260,10 @@ func TestIdentity_MarshalJSON(t *testing.T) {
 		ID: "user-123",
 		Traits: map[string]any{
 			"email": "test@example.com",
-			"name":  "Test User",
+			"name": map[string]any{
+				"first": "Test",
+				"last":  "User",
+			},
 		},
 	}
 
@@ -185,7 +277,9 @@ func TestIdentity_MarshalJSON(t *testing.T) {
 	assert.Equal(t, "user-123", result["id"])
 	traits := result["traits"].(map[string]any)
 	assert.Equal(t, "test@example.com", traits["email"])
-	assert.Equal(t, "Test User", traits["name"])
+	name := traits["name"].(map[string]any)
+	assert.Equal(t, "Test", name["first"])
+	assert.Equal(t, "User", name["last"])
 }
 
 func TestIdentity_UnmarshalJSON(t *testing.T) {
