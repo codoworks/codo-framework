@@ -23,14 +23,15 @@ func (b *BaseMiddlewareConfig) IsEnabled(isDevMode bool) bool {
 
 // MiddlewareConfig holds configuration for all middleware
 type MiddlewareConfig struct {
-	Logger  LoggerMiddlewareConfig  `yaml:"logger"`
-	CORS    CORSMiddlewareConfig    `yaml:"cors"`
-	Timeout TimeoutMiddlewareConfig `yaml:"timeout"`
-	Recover RecoverMiddlewareConfig `yaml:"recover"`
-	Gzip    GzipMiddlewareConfig    `yaml:"gzip"`
-	XSS     XSSMiddlewareConfig     `yaml:"xss"`
-	Auth    AuthMiddlewareConfig    `yaml:"auth"`
-	Health  HealthConfig            `yaml:"health"`
+	Logger     LoggerMiddlewareConfig     `yaml:"logger"`
+	CORS       CORSMiddlewareConfig       `yaml:"cors"`
+	Timeout    TimeoutMiddlewareConfig    `yaml:"timeout"`
+	Recover    RecoverMiddlewareConfig    `yaml:"recover"`
+	Gzip       GzipMiddlewareConfig       `yaml:"gzip"`
+	XSS        XSSMiddlewareConfig        `yaml:"xss"`
+	Auth       AuthMiddlewareConfig       `yaml:"auth"`
+	Health     HealthConfig               `yaml:"health"`
+	Pagination PaginationMiddlewareConfig `yaml:"pagination"`
 }
 
 // LoggerMiddlewareConfig holds configuration for the logger middleware
@@ -100,6 +101,24 @@ type HealthConfig struct {
 	ShowDetailsInProd bool `yaml:"show_details_in_prod" default:"false"`
 }
 
+// PaginationMiddlewareConfig holds configuration for the pagination middleware
+type PaginationMiddlewareConfig struct {
+	BaseMiddlewareConfig `yaml:",inline"`
+	DefaultPageSize      int                    `yaml:"default_page_size"` // Default items per page (default: 20)
+	MaxPageSize          int                    `yaml:"max_page_size"`     // Maximum allowed items per page (default: 100)
+	DefaultType          string                 `yaml:"default_type"`      // Default pagination type: "offset" or "cursor" (default: "offset")
+	LogDetails           bool                   `yaml:"log_details"`       // Log pagination params on each request (default: false)
+	ParamNames           PaginationParamNames   `yaml:"param_names"`       // Query parameter names
+}
+
+// PaginationParamNames configures the query parameter names used for pagination
+type PaginationParamNames struct {
+	Page      string `yaml:"page"`      // Page number param (default: "page")
+	PerPage   string `yaml:"per_page"`  // Items per page param (default: "per_page")
+	Cursor    string `yaml:"cursor"`    // Cursor param for cursor-based pagination (default: "cursor")
+	Direction string `yaml:"direction"` // Direction param for cursor pagination: "next" or "prev" (default: "direction")
+}
+
 // DefaultMiddlewareConfig returns default middleware configuration
 func DefaultMiddlewareConfig() MiddlewareConfig {
 	return MiddlewareConfig{
@@ -167,6 +186,22 @@ func DefaultMiddlewareConfig() MiddlewareConfig {
 		Health: HealthConfig{
 			Enabled:           true,  // ENABLED BY DEFAULT
 			ShowDetailsInProd: false, // Details only in dev mode
+		},
+		Pagination: PaginationMiddlewareConfig{
+			BaseMiddlewareConfig: BaseMiddlewareConfig{
+				Enabled:          false, // DISABLED BY DEFAULT - consumers must opt-in
+				DisableInDevMode: false,
+			},
+			DefaultPageSize: 20,
+			MaxPageSize:     100,
+			DefaultType:     "offset",
+			LogDetails:      false,
+			ParamNames: PaginationParamNames{
+				Page:      "page",
+				PerPage:   "per_page",
+				Cursor:    "cursor",
+				Direction: "direction",
+			},
 		},
 	}
 }

@@ -167,6 +167,7 @@ func TestClient_ValidateSession(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "user-456", identity.ID)
+	assert.Equal(t, "session-123", identity.SessionID)
 	assert.Equal(t, "test@example.com", identity.GetTraitString("email"))
 }
 

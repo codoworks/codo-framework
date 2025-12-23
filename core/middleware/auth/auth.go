@@ -169,6 +169,7 @@ func (m *AuthMiddleware) Handler() echo.MiddlewareFunc {
 					}).Info("[Auth] Dev bypass - using static identity")
 				}
 				auth.SetIdentity(c, devIdentity)
+				setIdentityHeaders(c, devIdentity)
 				return next(c)
 			}
 
@@ -232,8 +233,23 @@ func (m *AuthMiddleware) Handler() echo.MiddlewareFunc {
 			// Set identity in context
 			auth.SetIdentity(c, identity)
 
+			// Set headers for downstream service propagation
+			setIdentityHeaders(c, identity)
+
 			return next(c)
 		}
+	}
+}
+
+// setIdentityHeaders sets X-Kratos-* headers on the request for downstream propagation
+func setIdentityHeaders(c echo.Context, identity *auth.Identity) {
+	req := c.Request()
+	req.Header.Set("X-Kratos-User-ID", identity.ID)
+	if identity.SessionID != "" {
+		req.Header.Set("X-Kratos-Session-ID", identity.SessionID)
+	}
+	if email := identity.Email(); email != "" {
+		req.Header.Set("X-Kratos-User-Email", email)
 	}
 }
 

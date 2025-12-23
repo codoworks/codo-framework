@@ -219,6 +219,8 @@ func TestEnvCmd_FrameworkEnvVarFromEnvironment(t *testing.T) {
 	defer os.Unsetenv("CODO_DB_HOST")
 
 	cfg := config.NewWithDefaults()
+	// Simulate what config loader does: apply env override to config
+	cfg.Database.Host = "env-db-host.example.com"
 	cmd.SetConfig(cfg)
 	defer cmd.SetConfig(nil)
 
@@ -234,6 +236,31 @@ func TestEnvCmd_FrameworkEnvVarFromEnvironment(t *testing.T) {
 	// Should show the env value in the framework env vars table
 	assert.Contains(t, out, "env-db-host.example.com")
 	assert.Contains(t, out, "env") // Source should be "env"
+}
+
+func TestEnvCmd_FrameworkEnvVarFromYAML(t *testing.T) {
+	// Ensure the env var is NOT set
+	os.Unsetenv("CODO_DEV_MODE")
+
+	cfg := config.NewWithDefaults()
+	// Simulate value loaded from YAML (different from default)
+	cfg.DevMode = true
+	cmd.SetConfig(cfg)
+	defer cmd.SetConfig(nil)
+
+	output := new(bytes.Buffer)
+	cmd.SetOutput(output)
+	defer cmd.ResetOutput()
+
+	err := envCmd.RunE(envCmd, []string{})
+	require.NoError(t, err)
+
+	out := output.String()
+
+	// DEV_MODE should show "true" with source "yaml"
+	assert.Contains(t, out, "DEV_MODE")
+	assert.Contains(t, out, "true")
+	assert.Contains(t, out, "yaml") // Source should be "yaml"
 }
 
 func TestEnvCmd_MasksRabbitMQPassword(t *testing.T) {

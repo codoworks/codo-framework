@@ -81,14 +81,13 @@ func printFrameworkEnvVars(out io.Writer, cfg *config.Config) {
 	fmt.Fprintln(out, strings.Repeat("-", 85))
 
 	for _, v := range config.FrameworkEnvVars() {
-		value := v.GetValue()
-		displayValue := value
+		// Get actual value from config using reflection (NOT from os.Getenv)
+		actualValue := v.GetActualValue(cfg)
+		displayValue := actualValue
 
 		// Mask sensitive values unless --show-secrets
-		if v.Sensitive && !showSecrets {
-			if value != "" {
-				displayValue = "***MASKED***"
-			}
+		if v.Sensitive && !showSecrets && actualValue != "" {
+			displayValue = "***MASKED***"
 		}
 
 		// Format default display
@@ -97,11 +96,14 @@ func printFrameworkEnvVars(out io.Writer, cfg *config.Config) {
 			defaultDisplay = "(not set)"
 		}
 
+		// Detect source: env, yaml, or default
+		source := v.DetectSource(cfg)
+
 		fmt.Fprintf(out, "%-25s %-25s %-20s %s\n",
 			v.Name,
 			truncate(displayValue, 25),
 			truncate(defaultDisplay, 20),
-			v.Source(),
+			source,
 		)
 	}
 	fmt.Fprintln(out)

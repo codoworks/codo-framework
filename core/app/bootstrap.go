@@ -18,6 +18,7 @@ import (
 	_ "github.com/codoworks/codo-framework/core/middleware/cors"
 	_ "github.com/codoworks/codo-framework/core/middleware/gzip"
 	_ "github.com/codoworks/codo-framework/core/middleware/logger"
+	_ "github.com/codoworks/codo-framework/core/middleware/pagination"
 	_ "github.com/codoworks/codo-framework/core/middleware/recover"
 	_ "github.com/codoworks/codo-framework/core/middleware/requestid"
 	_ "github.com/codoworks/codo-framework/core/middleware/timeout"

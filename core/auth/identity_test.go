@@ -312,3 +312,67 @@ func TestIdentity_UnmarshalJSON_Invalid(t *testing.T) {
 	err := json.Unmarshal(data, &identity)
 	assert.Error(t, err)
 }
+
+func TestIdentity_SessionID(t *testing.T) {
+	identity := &Identity{
+		ID:        "user-123",
+		SessionID: "session-456",
+		Traits: map[string]any{
+			"email": "test@example.com",
+		},
+	}
+
+	assert.Equal(t, "session-456", identity.SessionID)
+}
+
+func TestIdentity_MarshalJSON_WithSessionID(t *testing.T) {
+	identity := &Identity{
+		ID:        "user-123",
+		SessionID: "session-456",
+		Traits: map[string]any{
+			"email": "test@example.com",
+		},
+	}
+
+	data, err := json.Marshal(identity)
+	require.NoError(t, err)
+
+	var result map[string]any
+	err = json.Unmarshal(data, &result)
+	require.NoError(t, err)
+
+	assert.Equal(t, "user-123", result["id"])
+	assert.Equal(t, "session-456", result["session_id"])
+}
+
+func TestIdentity_MarshalJSON_OmitEmptySessionID(t *testing.T) {
+	identity := &Identity{
+		ID: "user-123",
+		Traits: map[string]any{
+			"email": "test@example.com",
+		},
+	}
+
+	data, err := json.Marshal(identity)
+	require.NoError(t, err)
+
+	var result map[string]any
+	err = json.Unmarshal(data, &result)
+	require.NoError(t, err)
+
+	assert.Equal(t, "user-123", result["id"])
+	_, hasSessionID := result["session_id"]
+	assert.False(t, hasSessionID, "session_id should be omitted when empty")
+}
+
+func TestIdentity_UnmarshalJSON_WithSessionID(t *testing.T) {
+	data := []byte(`{"id":"user-456","session_id":"session-789","traits":{"email":"other@example.com"}}`)
+
+	var identity Identity
+	err := json.Unmarshal(data, &identity)
+	require.NoError(t, err)
+
+	assert.Equal(t, "user-456", identity.ID)
+	assert.Equal(t, "session-789", identity.SessionID)
+	assert.Equal(t, "other@example.com", identity.GetTraitString("email"))
+}

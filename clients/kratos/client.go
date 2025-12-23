@@ -133,8 +133,9 @@ func (c *Client) ValidateSession(ctx context.Context, cookie string) (*auth.Iden
 	}
 
 	return &auth.Identity{
-		ID:     session.Identity.ID,
-		Traits: session.Identity.Traits,
+		ID:        session.Identity.ID,
+		SessionID: session.ID,
+		Traits:    session.Identity.Traits,
 	}, nil
 }
 

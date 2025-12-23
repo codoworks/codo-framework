@@ -544,3 +544,129 @@ func TestAuthMiddleware_Priority(t *testing.T) {
 	assert.Equal(t, middleware.PriorityAuth, m.Priority())
 	assert.Equal(t, 105, m.Priority())
 }
+
+func TestAuthMiddleware_SetsIdentityHeaders(t *testing.T) {
+	mockKratos := kratos.NewMockClient()
+	mockKratos.ValidateFunc = func(ctx context.Context, cookie string) (*codoauth.Identity, error) {
+		return &codoauth.Identity{
+			ID:        "user-123",
+			SessionID: "session-456",
+			Traits: map[string]any{
+				"email": "test@example.com",
+			},
+		}, nil
+	}
+
+	cfg := &config.AuthMiddlewareConfig{
+		BaseMiddlewareConfig: config.BaseMiddlewareConfig{
+			Enabled: true,
+		},
+	}
+
+	m, err := setupAuthMiddleware(t, mockKratos, cfg)
+	assert.NoError(t, err)
+
+	handler := m.Handler()
+
+	var capturedHeaders http.Header
+	e := echo.New()
+	e.Use(handler)
+	e.GET("/test", func(c echo.Context) error {
+		// Capture the request headers after auth middleware has run
+		capturedHeaders = c.Request().Header
+		return c.String(http.StatusOK, "OK")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: "ory_kratos_session", Value: "valid-session"})
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "user-123", capturedHeaders.Get("X-Kratos-User-ID"))
+	assert.Equal(t, "session-456", capturedHeaders.Get("X-Kratos-Session-ID"))
+	assert.Equal(t, "test@example.com", capturedHeaders.Get("X-Kratos-User-Email"))
+}
+
+func TestAuthMiddleware_SetsIdentityHeaders_NoEmail(t *testing.T) {
+	mockKratos := kratos.NewMockClient()
+	mockKratos.ValidateFunc = func(ctx context.Context, cookie string) (*codoauth.Identity, error) {
+		return &codoauth.Identity{
+			ID:        "user-123",
+			SessionID: "session-456",
+			Traits:    map[string]any{}, // No email trait
+		}, nil
+	}
+
+	cfg := &config.AuthMiddlewareConfig{
+		BaseMiddlewareConfig: config.BaseMiddlewareConfig{
+			Enabled: true,
+		},
+	}
+
+	m, err := setupAuthMiddleware(t, mockKratos, cfg)
+	assert.NoError(t, err)
+
+	handler := m.Handler()
+
+	var capturedHeaders http.Header
+	e := echo.New()
+	e.Use(handler)
+	e.GET("/test", func(c echo.Context) error {
+		capturedHeaders = c.Request().Header
+		return c.String(http.StatusOK, "OK")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: "ory_kratos_session", Value: "valid-session"})
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "user-123", capturedHeaders.Get("X-Kratos-User-ID"))
+	assert.Equal(t, "session-456", capturedHeaders.Get("X-Kratos-Session-ID"))
+	assert.Equal(t, "", capturedHeaders.Get("X-Kratos-User-Email")) // Should not be set
+}
+
+func TestAuthMiddleware_DevMode_SetsHeaders(t *testing.T) {
+	mockKratos := kratos.NewMockClient()
+	cfg := &config.AuthMiddlewareConfig{
+		BaseMiddlewareConfig: config.BaseMiddlewareConfig{
+			Enabled: true,
+		},
+		DevMode:       true,
+		DevBypassAuth: true,
+		DevIdentity: &config.DevIdentityConfig{
+			ID: "dev-user",
+			Traits: map[string]any{
+				"email": "dev@example.com",
+			},
+		},
+	}
+
+	m, err := setupAuthMiddleware(t, mockKratos, cfg)
+	assert.NoError(t, err)
+
+	handler := m.Handler()
+
+	var capturedHeaders http.Header
+	e := echo.New()
+	e.Use(handler)
+	e.GET("/test", func(c echo.Context) error {
+		capturedHeaders = c.Request().Header
+		return c.String(http.StatusOK, "OK")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	// No cookie needed in dev mode
+	rec := httptest.NewRecorder()
+
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "dev-user", capturedHeaders.Get("X-Kratos-User-ID"))
+	assert.Equal(t, "", capturedHeaders.Get("X-Kratos-Session-ID")) // Dev identity has no session
+	assert.Equal(t, "dev@example.com", capturedHeaders.Get("X-Kratos-User-Email"))
+}

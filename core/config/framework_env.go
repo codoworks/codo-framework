@@ -1,7 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"reflect"
+	"strconv"
+	"strings"
 )
 
 // FrameworkEnvPrefix is the prefix for all framework environment variables
@@ -196,4 +200,75 @@ func GetFrameworkEnvVarByName(name string) *FrameworkEnvVar {
 		}
 	}
 	return nil
+}
+
+// getFieldByYAMLTag finds a struct field by its yaml tag
+func getFieldByYAMLTag(v reflect.Value, tag string) reflect.Value {
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return reflect.Value{}
+	}
+
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		yamlTag := field.Tag.Get("yaml")
+		// Handle tags like `yaml:"host"` or `yaml:"host,omitempty"`
+		yamlName := strings.Split(yamlTag, ",")[0]
+		if yamlName == tag {
+			return v.Field(i)
+		}
+	}
+	return reflect.Value{}
+}
+
+// GetConfigValueByPath reads a value from Config by dot-notation path.
+// Path uses YAML tag names: "database.host", "dev_mode", etc.
+func GetConfigValueByPath(cfg *Config, path string) string {
+	parts := strings.Split(path, ".")
+	v := reflect.ValueOf(cfg)
+
+	for _, part := range parts {
+		v = getFieldByYAMLTag(v, part)
+		if !v.IsValid() {
+			return ""
+		}
+	}
+
+	// Convert to string based on type
+	switch v.Kind() {
+	case reflect.String:
+		return v.String()
+	case reflect.Int, reflect.Int64:
+		return strconv.FormatInt(v.Int(), 10)
+	case reflect.Bool:
+		return strconv.FormatBool(v.Bool())
+	default:
+		return fmt.Sprintf("%v", v.Interface())
+	}
+}
+
+// GetActualValue reads the actual value from a Config object using reflection
+func (v FrameworkEnvVar) GetActualValue(cfg *Config) string {
+	return GetConfigValueByPath(cfg, v.ConfigPath)
+}
+
+// DetectSource determines where the value came from: "env", "yaml", or "default"
+func (v FrameworkEnvVar) DetectSource(cfg *Config) string {
+	actualValue := v.GetActualValue(cfg)
+	envValue, envSet := os.LookupEnv(v.FullName())
+
+	// If env var is set and matches actual value, source is "env"
+	if envSet && envValue == actualValue {
+		return "env"
+	}
+
+	// If actual value differs from default, it came from yaml
+	if actualValue != v.Default {
+		return "yaml"
+	}
+
+	return "default"
 }

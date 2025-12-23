@@ -6,8 +6,9 @@ import (
 
 // Identity represents an authenticated user
 type Identity struct {
-	ID     string         `json:"id"`
-	Traits map[string]any `json:"traits"`
+	ID        string         `json:"id"`
+	SessionID string         `json:"session_id,omitempty"`
+	Traits    map[string]any `json:"traits"`
 }
 
 // GetTrait retrieves a trait value by key

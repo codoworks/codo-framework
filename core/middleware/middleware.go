@@ -93,6 +93,7 @@ const (
 	PriorityFeatureMin      = 100
 	PriorityFeatureMax      = 199
 	PriorityLogger          = 100 // Request/response logging
+	PriorityPagination      = 102 // Pagination parameter extraction (after logger for logging)
 	PriorityAuth            = 105 // Authentication (Kratos session validation)
 	PriorityTimeout         = 110 // Request timeout
 	PriorityCORS            = 120 // Cross-origin handling
