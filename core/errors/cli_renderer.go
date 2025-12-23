@@ -3,10 +3,19 @@ package errors
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 )
+
+func init() {
+	// Respect NO_COLOR environment variable (https://no-color.org/)
+	if os.Getenv("NO_COLOR") != "" {
+		color.NoColor = true
+	}
+}
 
 // RenderCLI renders an error for command-line output with colors and formatting
 func RenderCLI(err error) {
@@ -62,14 +71,22 @@ func RenderCLI(err error) {
 		fmt.Fprintf(os.Stderr, "%s %s\n", labelColor.Sprint("Function:"), valueColor.Sprint(mappedErr.Caller.Function))
 	}
 
-	// Timestamp
-	fmt.Fprintf(os.Stderr, "%s %s\n", labelColor.Sprint("Time:"), valueColor.Sprint(mappedErr.Timestamp.Format("2006-01-02 15:04:05")))
+	// Timestamp with timezone
+	fmt.Fprintf(os.Stderr, "%s %s\n", labelColor.Sprint("Time:"), valueColor.Sprint(mappedErr.Timestamp.Format(time.RFC3339)))
 
-	// Details
+	// Details (sorted for consistent output)
 	if len(mappedErr.Details) > 0 {
 		fmt.Fprintf(os.Stderr, "\n%s\n", labelColor.Sprint("Details:"))
-		for k, v := range mappedErr.Details {
-			fmt.Fprintf(os.Stderr, "  %s: %v\n", dimColor.Sprint(k), valueColor.Sprint(v))
+
+		// Sort keys for consistent output
+		keys := make([]string, 0, len(mappedErr.Details))
+		for k := range mappedErr.Details {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			fmt.Fprintf(os.Stderr, "  %s: %v\n", dimColor.Sprint(k), valueColor.Sprint(mappedErr.Details[k]))
 		}
 	}
 

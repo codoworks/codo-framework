@@ -6,8 +6,51 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
+
+// CaptureConfig holds settings for error capture behavior
+// Set via SetCaptureConfig during initialization
+type CaptureConfig struct {
+	StackTraceOn5xx bool // Whether to capture stack traces for 5xx errors
+	StackTraceDepth int  // How many stack frames to capture
+	AutoDetectPhase bool // Whether to auto-detect lifecycle phase from package name
+}
+
+// defaultCaptureConfig returns safe defaults
+func defaultCaptureConfig() CaptureConfig {
+	return CaptureConfig{
+		StackTraceOn5xx: true,
+		StackTraceDepth: 32,
+		AutoDetectPhase: true,
+	}
+}
+
+var (
+	captureConfig   = defaultCaptureConfig()
+	captureConfigMu sync.RWMutex
+)
+
+// SetCaptureConfig sets the global capture configuration
+// Should be called during bootstrap before creating errors
+func SetCaptureConfig(cfg CaptureConfig) {
+	captureConfigMu.Lock()
+	defer captureConfigMu.Unlock()
+
+	// Validate and apply defaults for invalid values
+	if cfg.StackTraceDepth <= 0 {
+		cfg.StackTraceDepth = 32
+	}
+	captureConfig = cfg
+}
+
+// GetCaptureConfig returns the current capture configuration
+func GetCaptureConfig() CaptureConfig {
+	captureConfigMu.RLock()
+	defer captureConfigMu.RUnlock()
+	return captureConfig
+}
 
 // Phase identifies where in the application lifecycle the error occurred
 type Phase string
@@ -162,7 +205,12 @@ func captureCallerInfo(skip int) *CallerInfo {
 
 // captureStackTrace captures the current stack trace
 func captureStackTrace(skip int) []StackFrame {
-	const maxFrames = 32
+	cfg := GetCaptureConfig()
+	maxFrames := cfg.StackTraceDepth
+	if maxFrames <= 0 {
+		maxFrames = 32 // Fallback default
+	}
+
 	pcs := make([]uintptr, maxFrames)
 	n := runtime.Callers(skip, pcs)
 
@@ -232,8 +280,10 @@ func extractFunctionName(fnName string) string {
 }
 
 // New creates a new error with custom code, message, and HTTP status.
-// Automatically captures caller info, phase, and stack trace (in dev mode or for 5xx).
+// Automatically captures caller info, phase (if enabled), and stack trace (for 5xx if enabled).
 func New(code, message string, httpStatus int) *Error {
+	cfg := GetCaptureConfig()
+
 	err := &Error{
 		Code:       code,
 		Message:    message,
@@ -244,13 +294,13 @@ func New(code, message string, httpStatus int) *Error {
 	// Auto-capture caller (skip 2 frames: New + constructor)
 	err.Caller = captureCallerInfo(2)
 
-	// Auto-detect phase from package
-	if err.Caller != nil {
+	// Auto-detect phase from package (if enabled)
+	if cfg.AutoDetectPhase && err.Caller != nil {
 		err.Phase = detectPhaseFromPackage(err.Caller.Package)
 	}
 
-	// Capture stack trace for 5xx errors
-	if httpStatus >= 500 {
+	// Capture stack trace for 5xx errors (if enabled)
+	if cfg.StackTraceOn5xx && httpStatus >= 500 {
 		err.StackTrace = captureStackTrace(2)
 	}
 
@@ -302,6 +352,41 @@ func Timeout(msg string) *Error {
 // Unavailable creates a service unavailable error.
 func Unavailable(msg string) *Error {
 	return New(CodeUnavailable, msg, http.StatusServiceUnavailable)
+}
+
+// MethodNotAllowed creates a method not allowed error.
+func MethodNotAllowed(msg string) *Error {
+	return New(CodeMethodNotAllowed, msg, http.StatusMethodNotAllowed)
+}
+
+// Gone creates a gone error for permanently deleted resources.
+func Gone(msg string) *Error {
+	return New(CodeGone, msg, http.StatusGone)
+}
+
+// PreconditionFailed creates a precondition failed error.
+func PreconditionFailed(msg string) *Error {
+	return New(CodePreconditionFailed, msg, http.StatusPreconditionFailed)
+}
+
+// UnsupportedMediaType creates an unsupported media type error.
+func UnsupportedMediaType(msg string) *Error {
+	return New(CodeUnsupportedMedia, msg, http.StatusUnsupportedMediaType)
+}
+
+// TooManyRequests creates a rate limiting error.
+func TooManyRequests(msg string) *Error {
+	return New(CodeTooManyRequests, msg, http.StatusTooManyRequests)
+}
+
+// BadGateway creates a bad gateway error.
+func BadGateway(msg string) *Error {
+	return New(CodeBadGateway, msg, http.StatusBadGateway)
+}
+
+// GatewayTimeout creates a gateway timeout error.
+func GatewayTimeout(msg string) *Error {
+	return New(CodeGatewayTimeout, msg, http.StatusGatewayTimeout)
 }
 
 // Wrap wraps an existing error with a framework error.

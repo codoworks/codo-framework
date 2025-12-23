@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/codoworks/codo-framework/clients/logger"
@@ -9,6 +8,7 @@ import (
 	"github.com/codoworks/codo-framework/core/clients"
 	"github.com/codoworks/codo-framework/core/config"
 	"github.com/codoworks/codo-framework/core/db"
+	"github.com/codoworks/codo-framework/core/errors"
 	"github.com/codoworks/codo-framework/core/http"
 	"github.com/codoworks/codo-framework/core/middleware"
 
@@ -25,12 +25,15 @@ import (
 // Bootstrap initializes an application based on the specified mode
 func Bootstrap(cfg *config.Config, opts BootstrapOptions) (BaseApp, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("config is required")
+		return nil, errors.BadRequest("Config is required").
+			WithPhase(errors.PhaseBootstrap)
 	}
 
 	// Validate options based on mode
 	if err := validateOptions(opts); err != nil {
-		return nil, fmt.Errorf("invalid bootstrap options: %w", err)
+		return nil, errors.WrapBadRequest(err, "Invalid bootstrap options").
+			WithPhase(errors.PhaseBootstrap).
+			WithDetail("mode", opts.Mode.String())
 	}
 
 	// Log bootstrap mode in dev mode
@@ -54,7 +57,9 @@ func Bootstrap(cfg *config.Config, opts BootstrapOptions) (BaseApp, error) {
 		return bootstrapRouteInspector(cfg, opts)
 
 	default:
-		return nil, fmt.Errorf("unknown bootstrap mode: %s", opts.Mode)
+		return nil, errors.BadRequest("Unknown bootstrap mode").
+			WithPhase(errors.PhaseBootstrap).
+			WithDetail("mode", opts.Mode.String())
 	}
 }
 
@@ -63,17 +68,21 @@ func validateOptions(opts BootstrapOptions) error {
 	switch opts.Mode {
 	case HTTPRouter:
 		if opts.RouterScope == nil {
-			return fmt.Errorf("RouterScope is required for HTTPRouter mode")
+			return errors.BadRequest("RouterScope is required for HTTPRouter mode").
+				WithPhase(errors.PhaseBootstrap)
 		}
 
 	case WorkerDaemon:
 		if opts.WorkerRegistrar == nil {
-			return fmt.Errorf("WorkerRegistrar is required for WorkerDaemon mode")
+			return errors.BadRequest("WorkerRegistrar is required for WorkerDaemon mode").
+				WithPhase(errors.PhaseBootstrap)
 		}
 
 	case HTTPServer, RouteInspector:
 		if opts.HandlerRegistrar == nil {
-			return fmt.Errorf("HandlerRegistrar is required for %s mode", opts.Mode)
+			return errors.BadRequest("HandlerRegistrar is required").
+				WithPhase(errors.PhaseBootstrap).
+				WithDetail("mode", opts.Mode.String())
 		}
 	}
 
@@ -124,7 +133,8 @@ func registerFrameworkClients(cfg *config.Config) error {
 
 	// Initialize with enhanced error handling
 	if err := clients.InitializeAllWithMetadata(clientConfigs, log); err != nil {
-		return fmt.Errorf("failed to initialize clients: %w", err)
+		return errors.WrapInternal(err, "Failed to initialize clients").
+			WithPhase(errors.PhaseClient)
 	}
 
 	return nil
@@ -173,7 +183,8 @@ func initializeMiddleware(server *http.Server, cfg *config.Config) error {
 
 	// Initialize all registered middleware
 	if err := orchestrator.Initialize(); err != nil {
-		return fmt.Errorf("initialize middleware: %w", err)
+		return errors.WrapInternal(err, "Failed to initialize middleware").
+			WithPhase(errors.PhaseMiddleware)
 	}
 
 	// Apply middleware to each router based on scope

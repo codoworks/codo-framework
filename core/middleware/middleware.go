@@ -85,8 +85,8 @@ const (
 	PriorityCoreMin      = 0
 	PriorityCoreMax      = 99
 	PriorityRecover      = 0  // Must be first - catches panics
-	PriorityErrorHandler = 5  // Centralized error handling
 	PriorityRequestID    = 10 // Generate/propagate X-Request-ID
+	PriorityErrorHandler = 15 // Centralized error handling (after RequestID)
 	PriorityContextInit  = 20 // Wrap echo.Context in *Context (if needed)
 
 	// Feature middleware (100-199): Built-in, configurable

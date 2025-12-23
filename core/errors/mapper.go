@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"reflect"
+	"sync"
 )
 
 // LogLevel represents the severity level for logging
@@ -31,7 +32,9 @@ type PredicateMapping struct {
 }
 
 // ErrorMapper automatically maps any error to framework Error type
+// All methods are thread-safe via internal RWMutex
 type ErrorMapper struct {
+	mu                sync.RWMutex
 	sentinelMappings  map[error]MappingSpec
 	typeMappings      map[reflect.Type]MappingSpec
 	predicateMappings []PredicateMapping
@@ -79,6 +82,8 @@ func (m *ErrorMapper) registerDefaults() {
 
 // RegisterSentinel registers a sentinel error mapping
 func (m *ErrorMapper) RegisterSentinel(err error, spec MappingSpec) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.sentinelMappings[err] = spec
 }
 
@@ -89,12 +94,16 @@ func (m *ErrorMapper) RegisterType(errType error, spec MappingSpec) {
 		t = t.Elem()
 	}
 	if t != nil {
+		m.mu.Lock()
+		defer m.mu.Unlock()
 		m.typeMappings[t] = spec
 	}
 }
 
 // RegisterPredicate registers a predicate-based error mapping
 func (m *ErrorMapper) RegisterPredicate(predicate func(error) bool, spec MappingSpec) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.predicateMappings = append(m.predicateMappings, PredicateMapping{
 		Matches: predicate,
 		Spec:    spec,
@@ -103,6 +112,8 @@ func (m *ErrorMapper) RegisterPredicate(predicate func(error) bool, spec Mapping
 
 // RegisterConverter registers a custom error converter function
 func (m *ErrorMapper) RegisterConverter(fn func(error) *Error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.converters = append(m.converters, fn)
 }
 
@@ -112,16 +123,19 @@ func (m *ErrorMapper) MapError(err error) *Error {
 		return nil
 	}
 
+	// Already our error type? (no lock needed)
+	if e, ok := err.(*Error); ok {
+		return e
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	// Check custom converters first
 	for _, converter := range m.converters {
 		if converted := converter(err); converted != nil {
 			return converted
 		}
-	}
-
-	// Already our error type?
-	if e, ok := err.(*Error); ok {
-		return e
 	}
 
 	// Check sentinel errors (exact match)

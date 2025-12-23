@@ -2,12 +2,13 @@ package app
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/codoworks/codo-framework/core/clients"
 	"github.com/codoworks/codo-framework/core/config"
 	"github.com/codoworks/codo-framework/core/db"
 	"github.com/codoworks/codo-framework/core/db/migrations"
+	"github.com/codoworks/codo-framework/core/errors"
+	"github.com/codoworks/codo-framework/core/http"
 )
 
 // foundation holds the core infrastructure components (clients, config)
@@ -17,21 +18,43 @@ type foundation struct {
 
 // initFoundation initializes the foundation layer (clients and config)
 func initFoundation(cfg *config.Config, opts BootstrapOptions) (*foundation, error) {
+	// 0. Configure error handling from config
+	configureErrorHandling(cfg)
+
 	// 1. Register and initialize framework clients
 	if err := registerFrameworkClients(cfg); err != nil {
-		return nil, fmt.Errorf("failed to register framework clients: %w", err)
+		return nil, errors.WrapInternal(err, "Failed to register framework clients").
+			WithPhase(errors.PhaseBootstrap)
 	}
 
 	// 2. Register and initialize custom clients
 	if opts.CustomClientInit != nil {
 		if err := opts.CustomClientInit(cfg); err != nil {
-			return nil, fmt.Errorf("failed to initialize custom clients: %w", err)
+			return nil, errors.WrapInternal(err, "Failed to initialize custom clients").
+				WithPhase(errors.PhaseClient)
 		}
 	}
 
 	return &foundation{
 		config: cfg,
 	}, nil
+}
+
+// configureErrorHandling sets up the error handling configuration
+func configureErrorHandling(cfg *config.Config) {
+	// Configure error capture behavior
+	errors.SetCaptureConfig(errors.CaptureConfig{
+		StackTraceOn5xx: cfg.Errors.Capture.StackTraceOn5xx,
+		StackTraceDepth: cfg.Errors.Capture.StackTraceDepth,
+		AutoDetectPhase: cfg.Errors.Capture.AutoDetectPhase,
+	})
+
+	// Configure HTTP error response behavior
+	http.SetHandlerConfig(http.HandlerConfig{
+		ExposeDetails:     cfg.Errors.Handler.ExposeDetails,
+		ExposeStackTraces: cfg.Errors.Handler.ExposeStackTraces,
+		ResponseFormat:    cfg.Errors.Handler.ResponseFormat,
+	})
 }
 
 // Config returns the application configuration
@@ -53,7 +76,8 @@ func runMigrations(foundation *foundation, adder MigrationAdder) error {
 	// Get database client from registry
 	dbClient, err := clients.GetTyped[*db.Client]("db")
 	if err != nil {
-		return fmt.Errorf("failed to get database client: %w", err)
+		return errors.WrapInternal(err, "Failed to get database client").
+			WithPhase(errors.PhaseMigration)
 	}
 
 	// Create migration runner
@@ -64,7 +88,8 @@ func runMigrations(foundation *foundation, adder MigrationAdder) error {
 
 	// Run migrations
 	if _, err := runner.Up(context.Background()); err != nil {
-		return fmt.Errorf("migration execution failed: %w", err)
+		return errors.WrapInternal(err, "Migration execution failed").
+			WithPhase(errors.PhaseMigration)
 	}
 
 	return nil

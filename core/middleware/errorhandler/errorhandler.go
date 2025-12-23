@@ -1,6 +1,8 @@
 package errorhandler
 
 import (
+	"strconv"
+
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 
@@ -17,7 +19,7 @@ func init() {
 		BaseMiddleware: middleware.NewBaseMiddleware(
 			"errorhandler",
 			"middleware.errorhandler",
-			middleware.PriorityErrorHandler, // 5 - after recover (0), before requestid (10)
+			middleware.PriorityErrorHandler, // 15 - after recover (0) and requestid (10)
 			middleware.RouterAll,
 		),
 	})
@@ -93,11 +95,18 @@ func (m *ErrorHandlerMiddleware) Handler() echo.MiddlewareFunc {
 // logError logs the error with appropriate fields and level
 func logError(log *logrus.Logger, err *errors.Error, devMode bool) {
 	fields := logrus.Fields{
-		"code":      err.Code,
-		"status":    err.HTTPStatus,
-		"requestId": err.RequestCtx.RequestID,
-		"path":      err.RequestCtx.Path,
-		"method":    err.RequestCtx.Method,
+		"code":   err.Code,
+		"status": err.HTTPStatus,
+	}
+
+	// Add request context if present (nil-safe)
+	if err.RequestCtx != nil {
+		fields["requestId"] = err.RequestCtx.RequestID
+		fields["path"] = err.RequestCtx.Path
+		fields["method"] = err.RequestCtx.Method
+		if err.RequestCtx.UserID != "" {
+			fields["userId"] = err.RequestCtx.UserID
+		}
 	}
 
 	// Add phase if present
@@ -107,13 +116,8 @@ func logError(log *logrus.Logger, err *errors.Error, devMode bool) {
 
 	// Add caller location if present
 	if err.Caller != nil {
-		fields["location"] = err.Caller.File + ":" + string(rune(err.Caller.Line))
+		fields["location"] = err.Caller.File + ":" + strconv.Itoa(err.Caller.Line)
 		fields["function"] = err.Caller.Function
-	}
-
-	// Add user context if present
-	if err.RequestCtx.UserID != "" {
-		fields["userId"] = err.RequestCtx.UserID
 	}
 
 	// In dev mode, add more details
