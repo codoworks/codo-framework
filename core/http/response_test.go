@@ -92,7 +92,10 @@ func TestErrorResponse_ParamError(t *testing.T) {
 }
 
 func TestErrorResponse_ValidationErrorList(t *testing.T) {
-	err := &ValidationErrorList{Errors: []string{"email is required", "name is too short"}}
+	err := &ValidationErrorList{Errors: []ValidationError{
+		{Field: "email", Message: "is required"},
+		{Field: "name", Message: "is too short"},
+	}}
 
 	resp := ErrorResponse(err)
 
@@ -110,16 +113,6 @@ func TestErrorResponse_UnknownError(t *testing.T) {
 	assert.Equal(t, "INTERNAL_ERROR", resp.Code)
 	assert.Equal(t, "An unexpected error occurred", resp.Message)
 	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatus)
-}
-
-func TestValidationError(t *testing.T) {
-	errs := []string{"email is required", "password is too short"}
-	resp := ValidationError(errs)
-
-	assert.Equal(t, "VALIDATION_ERROR", resp.Code)
-	assert.Equal(t, "Validation failed", resp.Message)
-	assert.Equal(t, errs, resp.Errors)
-	assert.Equal(t, http.StatusUnprocessableEntity, resp.HTTPStatus)
 }
 
 func TestNotFound(t *testing.T) {

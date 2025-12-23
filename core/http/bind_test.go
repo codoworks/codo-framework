@@ -41,7 +41,7 @@ func TestValidate_Required(t *testing.T) {
 
 	verr := err.(*ValidationErrorList)
 	assert.NotEmpty(t, verr.Errors)
-	assert.Contains(t, verr.Errors[0], "is required")
+	assert.Contains(t, verr.Errors[0].Message, "is required")
 }
 
 func TestValidate_Email(t *testing.T) {
@@ -57,7 +57,7 @@ func TestValidate_Email(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundEmailError := false
 	for _, e := range verr.Errors {
-		if e == "email must be a valid email" {
+		if e.Field == "email" && e.Message == "must be a valid email" {
 			foundEmailError = true
 			break
 		}
@@ -78,7 +78,7 @@ func TestValidate_Min(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundMinError := false
 	for _, e := range verr.Errors {
-		if e == "name must be at least 2 characters" {
+		if e.Field == "name" && e.Message == "must be at least 2 characters" {
 			foundMinError = true
 			break
 		}
@@ -99,7 +99,7 @@ func TestValidate_Max(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundMaxError := false
 	for _, e := range verr.Errors {
-		if e == "name must be at most 50 characters" {
+		if e.Field == "name" && e.Message == "must be at most 50 characters" {
 			foundMaxError = true
 			break
 		}
@@ -121,7 +121,7 @@ func TestValidate_Gte(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundGteError := false
 	for _, e := range verr.Errors {
-		if e == "age must be greater than or equal to 0" {
+		if e.Field == "age" && e.Message == "must be greater than or equal to 0" {
 			foundGteError = true
 			break
 		}
@@ -143,7 +143,7 @@ func TestValidate_Lte(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundLteError := false
 	for _, e := range verr.Errors {
-		if e == "age must be less than or equal to 150" {
+		if e.Field == "age" && e.Message == "must be less than or equal to 150" {
 			foundLteError = true
 			break
 		}
@@ -165,7 +165,7 @@ func TestValidate_URL(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundURLError := false
 	for _, e := range verr.Errors {
-		if e == "website must be a valid URL" {
+		if e.Field == "website" && e.Message == "must be a valid URL" {
 			foundURLError = true
 			break
 		}
@@ -187,7 +187,7 @@ func TestValidate_UUID(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundUUIDError := false
 	for _, e := range verr.Errors {
-		if e == "user_id must be a valid UUID" {
+		if e.Field == "user_id" && e.Message == "must be a valid UUID" {
 			foundUUIDError = true
 			break
 		}
@@ -209,7 +209,7 @@ func TestValidate_OneOf(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundOneOfError := false
 	for _, e := range verr.Errors {
-		if e == "role must be one of: admin user guest" {
+		if e.Field == "role" && e.Message == "must be one of: admin user guest" {
 			foundOneOfError = true
 			break
 		}
@@ -231,7 +231,7 @@ func TestValidate_Numeric(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundNumericError := false
 	for _, e := range verr.Errors {
-		if e == "code must be numeric" {
+		if e.Field == "code" && e.Message == "must be numeric" {
 			foundNumericError = true
 			break
 		}
@@ -253,7 +253,7 @@ func TestValidate_Alpha(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundAlphaError := false
 	for _, e := range verr.Errors {
-		if e == "label must contain only letters" {
+		if e.Field == "label" && e.Message == "must contain only letters" {
 			foundAlphaError = true
 			break
 		}
@@ -275,7 +275,7 @@ func TestValidate_AlphaNum(t *testing.T) {
 	verr := err.(*ValidationErrorList)
 	foundAlphaNumError := false
 	for _, e := range verr.Errors {
-		if e == "tag must contain only letters and numbers" {
+		if e.Field == "tag" && e.Message == "must contain only letters and numbers" {
 			foundAlphaNumError = true
 			break
 		}
@@ -285,12 +285,15 @@ func TestValidate_AlphaNum(t *testing.T) {
 
 func TestValidationErrorList_Error(t *testing.T) {
 	t.Run("with errors", func(t *testing.T) {
-		v := &ValidationErrorList{Errors: []string{"error 1", "error 2"}}
-		assert.Equal(t, "error 1", v.Error())
+		v := &ValidationErrorList{Errors: []ValidationError{
+			{Field: "field1", Message: "error 1"},
+			{Field: "field2", Message: "error 2"},
+		}}
+		assert.Equal(t, "field1 error 1", v.Error())
 	})
 
 	t.Run("empty errors", func(t *testing.T) {
-		v := &ValidationErrorList{Errors: []string{}}
+		v := &ValidationErrorList{Errors: []ValidationError{}}
 		assert.Equal(t, "validation failed", v.Error())
 	})
 }
@@ -348,7 +351,7 @@ func TestValidate_JSONTagFieldName(t *testing.T) {
 	verr, ok := err.(*ValidationErrorList)
 	assert.True(t, ok)
 	// Should use json tag name "first_name" not "FirstName"
-	assert.Contains(t, verr.Errors[0], "first_name")
+	assert.Equal(t, "first_name", verr.Errors[0].Field)
 }
 
 func TestValidate_NoJSONTag(t *testing.T) {
@@ -363,7 +366,7 @@ func TestValidate_NoJSONTag(t *testing.T) {
 
 	verr, ok := err.(*ValidationErrorList)
 	assert.True(t, ok)
-	assert.Contains(t, verr.Errors[0], "FieldWithoutTag")
+	assert.Equal(t, "FieldWithoutTag", verr.Errors[0].Field)
 }
 
 func TestValidate_JSONTagDash(t *testing.T) {
@@ -378,7 +381,7 @@ func TestValidate_JSONTagDash(t *testing.T) {
 
 	verr, ok := err.(*ValidationErrorList)
 	assert.True(t, ok)
-	assert.Contains(t, verr.Errors[0], "HiddenField")
+	assert.Equal(t, "HiddenField", verr.Errors[0].Field)
 }
 
 func TestValidate_GtLtValidation(t *testing.T) {
@@ -391,7 +394,7 @@ func TestValidate_GtLtValidation(t *testing.T) {
 		err := Validate(f)
 		assert.Error(t, err)
 		verr := err.(*ValidationErrorList)
-		assert.Contains(t, verr.Errors[0], "greater than")
+		assert.Contains(t, verr.Errors[0].Message, "greater than")
 	})
 
 	t.Run("lt fails", func(t *testing.T) {
@@ -399,7 +402,7 @@ func TestValidate_GtLtValidation(t *testing.T) {
 		err := Validate(f)
 		assert.Error(t, err)
 		verr := err.(*ValidationErrorList)
-		assert.Contains(t, verr.Errors[0], "less than")
+		assert.Contains(t, verr.Errors[0].Message, "less than")
 	})
 }
 
@@ -423,5 +426,5 @@ func TestValidate_DefaultValidation(t *testing.T) {
 	assert.Error(t, err)
 	verr, ok := err.(*ValidationErrorList)
 	assert.True(t, ok)
-	assert.Contains(t, verr.Errors[0], "failed")
+	assert.Contains(t, verr.Errors[0].Message, "failed")
 }

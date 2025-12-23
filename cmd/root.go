@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codoworks/codo-framework/core/config"
+	"github.com/codoworks/codo-framework/core/errors"
 )
 
 var (
@@ -90,9 +91,24 @@ var infoCmd = &cobra.Command{
 	Long:  "Display information about the application (env, routes)",
 }
 
+// handleCommandError handles command errors with pretty CLI rendering
+func handleCommandError(err error) {
+	if err == nil {
+		return
+	}
+
+	// Use CLI renderer for beautiful colored output
+	errors.RenderCLI(err)
+
+	os.Exit(1)
+}
+
 // Execute runs the root command
 func Execute() error {
-	return rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		handleCommandError(err)
+	}
+	return nil
 }
 
 // SetVersion sets the version string

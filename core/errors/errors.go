@@ -3,15 +3,77 @@ package errors
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"time"
 )
+
+// Phase identifies where in the application lifecycle the error occurred
+type Phase string
+
+const (
+	PhaseBootstrap   Phase = "bootstrap"   // App initialization
+	PhaseConfig      Phase = "config"      // Configuration loading
+	PhaseClient      Phase = "client"      // Client initialization
+	PhaseMigration   Phase = "migration"   // Database migration
+	PhaseMiddleware  Phase = "middleware"  // Middleware execution
+	PhaseHandler     Phase = "handler"     // HTTP handler
+	PhaseService     Phase = "service"     // Business logic
+	PhaseRepository  Phase = "repository"  // Data access
+	PhaseWorker      Phase = "worker"      // Background worker
+	PhaseShutdown    Phase = "shutdown"    // Graceful shutdown
+)
+
+// CallerInfo captures where the error was created
+type CallerInfo struct {
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Function string `json:"function"`
+	Package  string `json:"package"`
+}
+
+// StackFrame represents one frame in a stack trace
+type StackFrame struct {
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Function string `json:"function"`
+}
+
+// RequestContext captures HTTP request details
+type RequestContext struct {
+	RequestID  string            `json:"requestId,omitempty"`
+	Method     string            `json:"method,omitempty"`
+	Path       string            `json:"path,omitempty"`
+	Query      map[string]string `json:"query,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
+	Body       string            `json:"body,omitempty"`
+	RemoteAddr string            `json:"remoteAddr,omitempty"`
+	UserID     string            `json:"userId,omitempty"`
+	SessionID  string            `json:"sessionId,omitempty"`
+}
 
 // Error represents a framework error with HTTP status mapping.
 type Error struct {
+	// Core fields
 	Code       string         `json:"code"`
 	Message    string         `json:"message"`
 	HTTPStatus int            `json:"-"`
-	Cause      error          `json:"-"`
-	Details    map[string]any `json:"details,omitempty"`
+	Phase      Phase          `json:"phase,omitempty"`
+	Timestamp  time.Time      `json:"timestamp"`
+
+	// Error chain
+	Cause   error          `json:"-"`
+	Details map[string]any `json:"details,omitempty"`
+
+	// Auto-captured context
+	Caller     *CallerInfo     `json:"caller,omitempty"`
+	StackTrace []StackFrame    `json:"stackTrace,omitempty"`
+	RequestCtx *RequestContext `json:"requestContext,omitempty"`
+
+	// Rendering hints
+	UserMessage string `json:"userMessage,omitempty"`
+	Internal    bool   `json:"-"`
 }
 
 // Error implements the error interface.
@@ -57,105 +119,196 @@ func (e *Error) WithDetail(key string, value any) *Error {
 	return e
 }
 
+// WithPhase sets the phase and returns the error for chaining.
+func (e *Error) WithPhase(phase Phase) *Error {
+	e.Phase = phase
+	return e
+}
+
+// WithUserMessage sets a user-friendly message and returns the error for chaining.
+func (e *Error) WithUserMessage(msg string) *Error {
+	e.UserMessage = msg
+	return e
+}
+
+// MarkInternal marks this error as internal (won't expose details in HTTP responses).
+func (e *Error) MarkInternal() *Error {
+	e.Internal = true
+	return e
+}
+
+// captureCallerInfo captures information about where the error was created
+func captureCallerInfo(skip int) *CallerInfo {
+	pc, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return nil
+	}
+
+	fn := runtime.FuncForPC(pc)
+	if fn == nil {
+		return nil
+	}
+
+	fnName := fn.Name()
+	pkg := extractPackage(fnName)
+
+	return &CallerInfo{
+		File:     filepath.Base(file),
+		Line:     line,
+		Function: extractFunctionName(fnName),
+		Package:  pkg,
+	}
+}
+
+// captureStackTrace captures the current stack trace
+func captureStackTrace(skip int) []StackFrame {
+	const maxFrames = 32
+	pcs := make([]uintptr, maxFrames)
+	n := runtime.Callers(skip, pcs)
+
+	frames := make([]StackFrame, 0, n)
+	for i := 0; i < n; i++ {
+		fn := runtime.FuncForPC(pcs[i])
+		if fn == nil {
+			continue
+		}
+
+		file, line := fn.FileLine(pcs[i])
+		frames = append(frames, StackFrame{
+			File:     filepath.Base(file),
+			Line:     line,
+			Function: extractFunctionName(fn.Name()),
+		})
+	}
+
+	return frames
+}
+
+// detectPhaseFromPackage attempts to detect the phase from package name
+func detectPhaseFromPackage(pkg string) Phase {
+	switch {
+	case strings.Contains(pkg, "/core/app"):
+		return PhaseBootstrap
+	case strings.Contains(pkg, "/core/config"):
+		return PhaseConfig
+	case strings.Contains(pkg, "/core/clients"):
+		return PhaseClient
+	case strings.Contains(pkg, "/core/db"):
+		return PhaseRepository
+	case strings.Contains(pkg, "/core/middleware"):
+		return PhaseMiddleware
+	case strings.Contains(pkg, "/handlers"):
+		return PhaseHandler
+	case strings.Contains(pkg, "/services"):
+		return PhaseService
+	case strings.Contains(pkg, "/repositories"):
+		return PhaseRepository
+	default:
+		return ""
+	}
+}
+
+// extractPackage extracts the package path from a function name
+func extractPackage(fnName string) string {
+	// Function name format: github.com/user/repo/pkg.Type.Method
+	lastSlash := strings.LastIndex(fnName, "/")
+	if lastSlash == -1 {
+		return ""
+	}
+
+	lastDot := strings.Index(fnName[lastSlash:], ".")
+	if lastDot == -1 {
+		return fnName
+	}
+
+	return fnName[:lastSlash+lastDot]
+}
+
+// extractFunctionName extracts just the function name from full path
+func extractFunctionName(fnName string) string {
+	// Get everything after last slash
+	parts := strings.Split(fnName, "/")
+	return parts[len(parts)-1]
+}
+
 // New creates a new error with custom code, message, and HTTP status.
+// Automatically captures caller info, phase, and stack trace (in dev mode or for 5xx).
 func New(code, message string, httpStatus int) *Error {
-	return &Error{
+	err := &Error{
 		Code:       code,
 		Message:    message,
 		HTTPStatus: httpStatus,
+		Timestamp:  time.Now(),
 	}
+
+	// Auto-capture caller (skip 2 frames: New + constructor)
+	err.Caller = captureCallerInfo(2)
+
+	// Auto-detect phase from package
+	if err.Caller != nil {
+		err.Phase = detectPhaseFromPackage(err.Caller.Package)
+	}
+
+	// Capture stack trace for 5xx errors
+	if httpStatus >= 500 {
+		err.StackTrace = captureStackTrace(2)
+	}
+
+	return err
 }
 
 // Internal creates an internal server error.
 func Internal(msg string) *Error {
-	return &Error{
-		Code:       CodeInternal,
-		Message:    msg,
-		HTTPStatus: http.StatusInternalServerError,
-	}
+	return New(CodeInternal, msg, http.StatusInternalServerError)
 }
 
 // NotFound creates a not found error.
 func NotFound(msg string) *Error {
-	return &Error{
-		Code:       CodeNotFound,
-		Message:    msg,
-		HTTPStatus: http.StatusNotFound,
-	}
+	return New(CodeNotFound, msg, http.StatusNotFound)
 }
 
 // BadRequest creates a bad request error.
 func BadRequest(msg string) *Error {
-	return &Error{
-		Code:       CodeBadRequest,
-		Message:    msg,
-		HTTPStatus: http.StatusBadRequest,
-	}
+	return New(CodeBadRequest, msg, http.StatusBadRequest)
 }
 
 // Unauthorized creates an unauthorized error.
 func Unauthorized(msg string) *Error {
-	return &Error{
-		Code:       CodeUnauthorized,
-		Message:    msg,
-		HTTPStatus: http.StatusUnauthorized,
-	}
+	return New(CodeUnauthorized, msg, http.StatusUnauthorized)
 }
 
 // Forbidden creates a forbidden error.
 func Forbidden(msg string) *Error {
-	return &Error{
-		Code:       CodeForbidden,
-		Message:    msg,
-		HTTPStatus: http.StatusForbidden,
-	}
+	return New(CodeForbidden, msg, http.StatusForbidden)
 }
 
 // Conflict creates a conflict error.
 func Conflict(msg string) *Error {
-	return &Error{
-		Code:       CodeConflict,
-		Message:    msg,
-		HTTPStatus: http.StatusConflict,
-	}
+	return New(CodeConflict, msg, http.StatusConflict)
 }
 
 // Validation creates a validation error with a list of validation errors.
 func Validation(msg string, errs []string) *Error {
-	return &Error{
-		Code:       CodeValidation,
-		Message:    msg,
-		HTTPStatus: http.StatusUnprocessableEntity,
-		Details:    map[string]any{"errors": errs},
-	}
+	err := New(CodeValidation, msg, http.StatusUnprocessableEntity)
+	err.Details = map[string]any{"errors": errs}
+	return err
 }
 
 // Timeout creates a timeout error.
 func Timeout(msg string) *Error {
-	return &Error{
-		Code:       CodeTimeout,
-		Message:    msg,
-		HTTPStatus: http.StatusRequestTimeout,
-	}
+	return New(CodeTimeout, msg, http.StatusRequestTimeout)
 }
 
 // Unavailable creates a service unavailable error.
 func Unavailable(msg string) *Error {
-	return &Error{
-		Code:       CodeUnavailable,
-		Message:    msg,
-		HTTPStatus: http.StatusServiceUnavailable,
-	}
+	return New(CodeUnavailable, msg, http.StatusServiceUnavailable)
 }
 
 // Wrap wraps an existing error with a framework error.
 func Wrap(err error, code, message string, httpStatus int) *Error {
-	return &Error{
-		Code:       code,
-		Message:    message,
-		HTTPStatus: httpStatus,
-		Cause:      err,
-	}
+	e := New(code, message, httpStatus)
+	e.Cause = err
+	return e
 }
 
 // WrapInternal wraps an error as an internal error.

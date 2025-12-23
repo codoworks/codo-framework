@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/codoworks/codo-framework/core/db"
+	"github.com/codoworks/codo-framework/core/errors"
 	coreforms "github.com/codoworks/codo-framework/core/forms"
 	"github.com/codoworks/codo-framework/core/http"
 	"github.com/codoworks/codo-framework/examples/forms"
@@ -100,7 +101,7 @@ func (h *ContactHandler) Create(c *http.Context) error {
 	contact := form.ToModel()
 	if err := h.service.Create(c.Request().Context(), contact); err != nil {
 		if err == db.ErrNotFound {
-			return c.JSON(nethttp.StatusUnprocessableEntity, http.ValidationError([]string{"group_id: group not found"}))
+			return c.SendError(errors.BadRequest("Group not found").WithDetail("group_id", "group not found"))
 		}
 		return c.SendError(err)
 	}
@@ -153,7 +154,7 @@ func (h *ContactHandler) Update(c *http.Context) error {
 
 	if err := h.service.Update(c.Request().Context(), contact); err != nil {
 		if err == db.ErrNotFound {
-			return c.JSON(nethttp.StatusUnprocessableEntity, http.ValidationError([]string{"group_id: group not found"}))
+			return c.SendError(errors.BadRequest("Group not found").WithDetail("group_id", "group not found"))
 		}
 		return c.SendError(err)
 	}

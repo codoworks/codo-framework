@@ -12,6 +12,7 @@ type Config struct {
 	RabbitMQ   RabbitMQConfig   `yaml:"rabbitmq"`
 	Features   FeaturesConfig   `yaml:"features"`
 	Middleware MiddlewareConfig `yaml:"middleware"`
+	Errors     ErrorsConfig     `yaml:"errors"`
 	DevMode    bool             `yaml:"-"` // Not loaded from YAML
 
 	// Extensions captures any additional app-specific config sections
@@ -29,6 +30,7 @@ func NewWithDefaults() *Config {
 		RabbitMQ:   DefaultRabbitMQConfig(),
 		Features:   DefaultFeaturesConfig(),
 		Middleware: DefaultMiddlewareConfig(),
+		Errors:     DefaultErrorsConfig(),
 		DevMode:    false,
 		Extensions: make(map[string]interface{}),
 	}

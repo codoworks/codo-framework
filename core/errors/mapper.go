@@ -1,0 +1,197 @@
+package errors
+
+import (
+	"context"
+	"database/sql"
+	"reflect"
+)
+
+// LogLevel represents the severity level for logging
+type LogLevel string
+
+const (
+	LogLevelDebug LogLevel = "debug"
+	LogLevelInfo  LogLevel = "info"
+	LogLevelWarn  LogLevel = "warn"
+	LogLevelError LogLevel = "error"
+)
+
+// MappingSpec defines how an error should be mapped
+type MappingSpec struct {
+	Code       string
+	HTTPStatus int
+	LogLevel   LogLevel
+	Message    string // Optional: override error message
+}
+
+// PredicateMapping allows predicate-based error matching
+type PredicateMapping struct {
+	Matches func(error) bool
+	Spec    MappingSpec
+}
+
+// ErrorMapper automatically maps any error to framework Error type
+type ErrorMapper struct {
+	sentinelMappings  map[error]MappingSpec
+	typeMappings      map[reflect.Type]MappingSpec
+	predicateMappings []PredicateMapping
+	converters        []func(error) *Error
+}
+
+var globalMapper = NewErrorMapper()
+
+// NewErrorMapper creates a new error mapper with default mappings
+func NewErrorMapper() *ErrorMapper {
+	m := &ErrorMapper{
+		sentinelMappings:  make(map[error]MappingSpec),
+		typeMappings:      make(map[reflect.Type]MappingSpec),
+		predicateMappings: make([]PredicateMapping, 0),
+		converters:        make([]func(error) *Error, 0),
+	}
+	m.registerDefaults()
+	return m
+}
+
+// registerDefaults registers framework default error mappings
+func (m *ErrorMapper) registerDefaults() {
+	// Standard library errors
+	m.RegisterSentinel(sql.ErrNoRows, MappingSpec{
+		Code:       CodeNotFound,
+		HTTPStatus: 404,
+		LogLevel:   LogLevelWarn,
+		Message:    "Resource not found",
+	})
+
+	m.RegisterSentinel(context.DeadlineExceeded, MappingSpec{
+		Code:       CodeTimeout,
+		HTTPStatus: 408,
+		LogLevel:   LogLevelWarn,
+		Message:    "Request timeout",
+	})
+
+	m.RegisterSentinel(context.Canceled, MappingSpec{
+		Code:       CodeInternal,
+		HTTPStatus: 500,
+		LogLevel:   LogLevelWarn,
+		Message:    "Request canceled",
+	})
+}
+
+// RegisterSentinel registers a sentinel error mapping
+func (m *ErrorMapper) RegisterSentinel(err error, spec MappingSpec) {
+	m.sentinelMappings[err] = spec
+}
+
+// RegisterType registers a type-based error mapping
+func (m *ErrorMapper) RegisterType(errType error, spec MappingSpec) {
+	t := reflect.TypeOf(errType)
+	if t != nil && t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t != nil {
+		m.typeMappings[t] = spec
+	}
+}
+
+// RegisterPredicate registers a predicate-based error mapping
+func (m *ErrorMapper) RegisterPredicate(predicate func(error) bool, spec MappingSpec) {
+	m.predicateMappings = append(m.predicateMappings, PredicateMapping{
+		Matches: predicate,
+		Spec:    spec,
+	})
+}
+
+// RegisterConverter registers a custom error converter function
+func (m *ErrorMapper) RegisterConverter(fn func(error) *Error) {
+	m.converters = append(m.converters, fn)
+}
+
+// MapError maps any error to a framework Error
+func (m *ErrorMapper) MapError(err error) *Error {
+	if err == nil {
+		return nil
+	}
+
+	// Check custom converters first
+	for _, converter := range m.converters {
+		if converted := converter(err); converted != nil {
+			return converted
+		}
+	}
+
+	// Already our error type?
+	if e, ok := err.(*Error); ok {
+		return e
+	}
+
+	// Check sentinel errors (exact match)
+	if spec, ok := m.sentinelMappings[err]; ok {
+		return m.createFromSpec(err, spec)
+	}
+
+	// Check if error wraps a known sentinel (using errors.Is)
+	for sentinel, spec := range m.sentinelMappings {
+		if isError(err, sentinel) {
+			return m.createFromSpec(err, spec)
+		}
+	}
+
+	// Check type-based mappings
+	errType := reflect.TypeOf(err)
+	if errType != nil {
+		if errType.Kind() == reflect.Ptr {
+			errType = errType.Elem()
+		}
+		if spec, ok := m.typeMappings[errType]; ok {
+			return m.createFromSpec(err, spec)
+		}
+	}
+
+	// Check predicate mappings
+	for _, pm := range m.predicateMappings {
+		if pm.Matches(err) {
+			return m.createFromSpec(err, pm.Spec)
+		}
+	}
+
+	// Default: internal error
+	return WrapInternal(err, "An unexpected error occurred")
+}
+
+// createFromSpec creates an Error from a MappingSpec
+func (m *ErrorMapper) createFromSpec(err error, spec MappingSpec) *Error {
+	msg := spec.Message
+	if msg == "" {
+		msg = err.Error()
+	}
+
+	return Wrap(err, spec.Code, msg, spec.HTTPStatus)
+}
+
+// isError checks if an error matches a target (similar to errors.Is but simpler)
+func isError(err, target error) bool {
+	if err == target {
+		return true
+	}
+
+	// Check if error has Unwrap method
+	type unwrapper interface {
+		Unwrap() error
+	}
+
+	if u, ok := err.(unwrapper); ok {
+		return isError(u.Unwrap(), target)
+	}
+
+	return false
+}
+
+// GetMapper returns the global error mapper for custom registration
+func GetMapper() *ErrorMapper {
+	return globalMapper
+}
+
+// MapError is a convenience function that uses the global mapper
+func MapError(err error) *Error {
+	return globalMapper.MapError(err)
+}

@@ -12,6 +12,7 @@ import (
 // Context extends echo.Context with additional helpers
 type Context struct {
 	echo.Context
+	warnings []Warning // Accumulated warnings for the response
 }
 
 // BindAndValidate binds the request body and validates it
@@ -82,14 +83,18 @@ func (c *Context) QueryBool(name string, defaultVal bool) bool {
 	return result
 }
 
-// Success sends a 200 OK response
+// Success sends a 200 OK response with any accumulated warnings
 func (c *Context) Success(payload any) error {
-	return c.JSON(http.StatusOK, Success(payload))
+	resp := Success(payload)
+	resp.Warnings = c.warnings
+	return c.JSON(http.StatusOK, resp)
 }
 
-// Created sends a 201 Created response
+// Created sends a 201 Created response with any accumulated warnings
 func (c *Context) Created(payload any) error {
-	return c.JSON(http.StatusCreated, Created(payload))
+	resp := Created(payload)
+	resp.Warnings = c.warnings
+	return c.JSON(http.StatusCreated, resp)
 }
 
 // NoContent sends a 204 No Content response
@@ -117,6 +122,30 @@ func (c *Context) GetRequestID() string {
 // RealIP returns the client's real IP address
 func (c *Context) RealIP() string {
 	return c.Context.RealIP()
+}
+
+// AddWarning adds a warning to the response
+// Warnings allow handlers to indicate partial failures or non-critical issues
+// Example: c.AddWarning("SYNC_FAILED", "External sync failed, queued for retry")
+func (c *Context) AddWarning(code, message string) {
+	c.warnings = append(c.warnings, NewWarning(code, message))
+}
+
+// AddWarningWithDetails adds a warning with additional details
+func (c *Context) AddWarningWithDetails(code, message string, details map[string]any) {
+	warning := NewWarning(code, message)
+	warning.Details = details
+	c.warnings = append(c.warnings, warning)
+}
+
+// GetWarnings returns all accumulated warnings
+func (c *Context) GetWarnings() []Warning {
+	return c.warnings
+}
+
+// HasWarnings returns true if any warnings have been added
+func (c *Context) HasWarnings() bool {
+	return len(c.warnings) > 0
 }
 
 // BindError represents a binding error

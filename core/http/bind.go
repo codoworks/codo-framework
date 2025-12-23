@@ -32,7 +32,7 @@ func Validate(form any) error {
 
 	// Convert to our validation error format
 	if validationErrs, ok := err.(validator.ValidationErrors); ok {
-		errs := make([]string, 0, len(validationErrs))
+		errs := make([]ValidationError, 0, len(validationErrs))
 		for _, e := range validationErrs {
 			errs = append(errs, formatValidationError(e))
 		}
@@ -44,51 +44,59 @@ func Validate(form any) error {
 
 // ValidationErrorList holds a list of validation errors
 type ValidationErrorList struct {
-	Errors []string
+	Errors []ValidationError
 }
 
 func (e *ValidationErrorList) Error() string {
 	if len(e.Errors) == 0 {
 		return "validation failed"
 	}
-	return e.Errors[0]
+	return e.Errors[0].Field + " " + e.Errors[0].Message
 }
 
-func formatValidationError(e validator.FieldError) string {
-	field := e.Field()
+func formatValidationError(e validator.FieldError) ValidationError {
+	return ValidationError{
+		Field:   e.Field(), // Already uses JSON tag name from RegisterTagNameFunc
+		Message: formatConstraintMessage(e),
+	}
+}
+
+func formatConstraintMessage(e validator.FieldError) string {
 	tag := e.Tag()
 
+	// Return just the constraint message, not including the field name
+	// The field name is already in ValidationError.Field
 	switch tag {
 	case "required":
-		return field + " is required"
+		return "is required"
 	case "min":
-		return field + " must be at least " + e.Param() + " characters"
+		return "must be at least " + e.Param() + " characters"
 	case "max":
-		return field + " must be at most " + e.Param() + " characters"
+		return "must be at most " + e.Param() + " characters"
 	case "email":
-		return field + " must be a valid email"
+		return "must be a valid email"
 	case "uuid":
-		return field + " must be a valid UUID"
+		return "must be a valid UUID"
 	case "url":
-		return field + " must be a valid URL"
+		return "must be a valid URL"
 	case "gte":
-		return field + " must be greater than or equal to " + e.Param()
+		return "must be greater than or equal to " + e.Param()
 	case "lte":
-		return field + " must be less than or equal to " + e.Param()
+		return "must be less than or equal to " + e.Param()
 	case "gt":
-		return field + " must be greater than " + e.Param()
+		return "must be greater than " + e.Param()
 	case "lt":
-		return field + " must be less than " + e.Param()
+		return "must be less than " + e.Param()
 	case "oneof":
-		return field + " must be one of: " + e.Param()
+		return "must be one of: " + e.Param()
 	case "numeric":
-		return field + " must be numeric"
+		return "must be numeric"
 	case "alpha":
-		return field + " must contain only letters"
+		return "must contain only letters"
 	case "alphanum":
-		return field + " must contain only letters and numbers"
+		return "must contain only letters and numbers"
 	default:
-		return field + " failed " + tag + " validation"
+		return "failed " + tag + " validation"
 	}
 }
 

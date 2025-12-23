@@ -2,15 +2,17 @@ package recover
 
 import (
 	"fmt"
-	"net/http"
 	"runtime/debug"
+
+	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
 
 	"github.com/codoworks/codo-framework/clients/logger"
 	"github.com/codoworks/codo-framework/core/clients"
 	"github.com/codoworks/codo-framework/core/config"
+	"github.com/codoworks/codo-framework/core/errors"
+	httpPkg "github.com/codoworks/codo-framework/core/http"
 	"github.com/codoworks/codo-framework/core/middleware"
-	"github.com/labstack/echo/v4"
-	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -61,39 +63,49 @@ func (m *RecoverMiddleware) Handler() echo.MiddlewareFunc {
 		log = logrus.StandardLogger()
 	}
 
-	devMode := false
-	if m.cfg != nil {
-		devMode = m.cfg.IsDevMode()
-	}
-
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			defer func() {
 				if r := recover(); r != nil {
-					err, ok := r.(error)
-					if !ok {
-						err = fmt.Errorf("%v", r)
+					// Convert panic value to error
+					var err error
+					switch x := r.(type) {
+					case string:
+						err = fmt.Errorf("panic: %s", x)
+					case error:
+						err = x
+					default:
+						err = fmt.Errorf("panic: %v", r)
 					}
 
 					stack := debug.Stack()
 
+					// Create framework error from panic
+					fwkErr := errors.WrapInternal(err, "Panic recovered in HTTP handler").
+						WithPhase(errors.PhaseHandler).
+						WithDetail("panic", true).
+						WithDetail("stack", string(stack))
+
+					// Enrich with request context
+					fwkErr.RequestCtx = &errors.RequestContext{
+						RequestID:  c.Response().Header().Get(echo.HeaderXRequestID),
+						Method:     c.Request().Method,
+						Path:       c.Request().URL.Path,
+						RemoteAddr: c.RealIP(),
+					}
+
+					// Log panic with full details
 					log.WithFields(logrus.Fields{
-						"error": err.Error(),
-						"stack": string(stack),
-						"path":  c.Request().URL.Path,
+						"error":     err.Error(),
+						"stack":     string(stack),
+						"requestId": fwkErr.RequestCtx.RequestID,
+						"path":      fwkErr.RequestCtx.Path,
 					}).Error("Panic recovered")
 
-					response := map[string]interface{}{
-						"code":    "INTERNAL_ERROR",
-						"message": "An unexpected error occurred",
-					}
-
-					if devMode {
-						response["error"] = err.Error()
-						response["stack"] = string(stack)
-					}
-
-					c.JSON(http.StatusInternalServerError, response)
+					// Render response using framework error
+					// Note: Error handler middleware won't run after panic, so we handle it here
+					resp := httpPkg.ErrorResponse(fwkErr)
+					c.JSON(resp.HTTPStatus, resp)
 				}
 			}()
 
