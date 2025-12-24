@@ -121,6 +121,85 @@ type CursorMeta struct {
 	PerPage    int    `json:"per_page"`
 }
 
+// Pagination type constants
+const (
+	PageTypeOffset = "offset"
+	PageTypeCursor = "cursor"
+)
+
+// PageMeta contains unified pagination metadata for both offset and cursor pagination.
+// The Type field indicates which pagination mode is active.
+// Fields irrelevant to the current type will be omitted from JSON via omitempty.
+type PageMeta struct {
+	// Type discriminator: "offset" or "cursor"
+	Type string `json:"type"`
+
+	// Common fields (always present)
+	PerPage int  `json:"per_page"`
+	HasNext bool `json:"has_next"`
+	HasPrev bool `json:"has_prev"`
+
+	// Offset-specific fields (omitted for cursor pagination)
+	Total int64 `json:"total,omitempty"`
+	Page  int   `json:"page,omitempty"`
+	Pages int   `json:"pages,omitempty"`
+
+	// Cursor-specific fields (omitted for offset pagination)
+	NextCursor string `json:"next_cursor,omitempty"`
+	PrevCursor string `json:"prev_cursor,omitempty"`
+}
+
+// NewOffsetPageMeta creates offset-based pagination metadata
+func NewOffsetPageMeta(total int64, page, perPage int) *PageMeta {
+	if perPage <= 0 {
+		perPage = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+
+	pages := int(math.Ceil(float64(total) / float64(perPage)))
+	if pages == 0 {
+		pages = 1
+	}
+
+	return &PageMeta{
+		Type:    PageTypeOffset,
+		Total:   total,
+		Page:    page,
+		PerPage: perPage,
+		Pages:   pages,
+		HasNext: page < pages,
+		HasPrev: page > 1,
+	}
+}
+
+// NewCursorPageMeta creates cursor-based pagination metadata
+func NewCursorPageMeta(nextCursor, prevCursor string, hasMore bool, perPage int) *PageMeta {
+	if perPage <= 0 {
+		perPage = 20
+	}
+
+	return &PageMeta{
+		Type:       PageTypeCursor,
+		PerPage:    perPage,
+		HasNext:    hasMore,
+		HasPrev:    prevCursor != "",
+		NextCursor: nextCursor,
+		PrevCursor: prevCursor,
+	}
+}
+
+// IsOffset returns true if this is offset-based pagination
+func (p *PageMeta) IsOffset() bool {
+	return p.Type == PageTypeOffset
+}
+
+// IsCursor returns true if this is cursor-based pagination
+func (p *PageMeta) IsCursor() bool {
+	return p.Type == PageTypeCursor
+}
+
 // CursorListResponse wraps items with cursor-based pagination
 type CursorListResponse[T any] struct {
 	Items []T        `json:"items"`

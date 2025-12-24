@@ -57,7 +57,7 @@ type Response struct {
 	Errors     []ValidationError  `json:"errors,omitempty"`   // Structured validation errors
 	Warnings   []Warning          `json:"warnings,omitempty"` // Non-fatal issues (partial failures, deprecations)
 	Payload    any                `json:"payload,omitempty"`
-	Page       *forms.ListMeta    `json:"page,omitempty"`     // Pagination metadata (set via pagination.SetMeta)
+	Page       *forms.PageMeta    `json:"page,omitempty"`     // Pagination metadata (set via pagination.SetMeta or SetCursorMeta)
 	HTTPStatus int                `json:"-"`
 
 	// Debug fields (only included when config.ExposeDetails/ExposeStackTraces is true)
@@ -73,7 +73,7 @@ type StrictResponse struct {
 	Errors     []ValidationError   `json:"errors"`   // No omitempty - always present
 	Warnings   []Warning           `json:"warnings"` // No omitempty - always present
 	Payload    any                 `json:"payload"`  // No omitempty - null if empty
-	Page       *forms.ListMeta     `json:"page"`     // No omitempty - null if empty
+	Page       *forms.PageMeta     `json:"page"`     // No omitempty - null if empty
 	Details    map[string]any      `json:"details,omitempty"`    // Still conditional on config
 	StackTrace []errors.StackFrame `json:"stackTrace,omitempty"` // Still conditional on config
 }

@@ -3,7 +3,6 @@ package pagination
 import (
 	"context"
 	"fmt"
-	"math"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -117,7 +116,7 @@ func queryInt(c echo.Context, name string, defaultVal int) int {
 	return result
 }
 
-// SetMeta stores computed pagination metadata in context for response inclusion.
+// SetMeta stores offset-based pagination metadata in context for response inclusion.
 // Call this from handlers after querying total count to populate the Page field
 // in the standard response.
 //
@@ -127,7 +126,7 @@ func queryInt(c echo.Context, name string, defaultVal int) int {
 //	    pg := pagination.Get(c)
 //	    items, _ := h.service.FindAll(ctx, pg.QueryOptions()...)
 //	    total, _ := h.service.Count(ctx)
-//	    pagination.SetMeta(c, total)  // Sets Page metadata
+//	    pagination.SetMeta(c, total)  // Sets Page metadata (offset type)
 //	    return c.Success(items)       // Response includes Page field
 //	}
 func SetMeta(c echo.Context, total int64) {
@@ -136,24 +135,32 @@ func SetMeta(c echo.Context, total int64) {
 		return
 	}
 
-	perPage := params.PerPage
-	if perPage <= 0 {
-		perPage = 20
+	meta := forms.NewOffsetPageMeta(total, params.Page, params.PerPage)
+
+	// Store meta in context for response methods to pick up
+	ctx := context.WithValue(c.Request().Context(), metaKey, meta)
+	c.SetRequest(c.Request().WithContext(ctx))
+}
+
+// SetCursorMeta stores cursor-based pagination metadata in context for response inclusion.
+// Call this from handlers after fetching data to populate the Page field with cursor info.
+//
+// Example:
+//
+//	func (h *Handler) List(c *http.Context) error {
+//	    pg := pagination.Get(c)
+//	    result, _ := h.service.ListWithCursor(ctx, pg.PerPage, pg.Cursor)
+//	    pagination.SetCursorMeta(c, result.NextCursor, result.HasMore)  // Sets Page metadata (cursor type)
+//	    return c.Success(result.Items)  // Response includes Page field
+//	}
+func SetCursorMeta(c echo.Context, nextCursor string, hasMore bool) {
+	params := Get(c)
+	perPage := 20
+	if params != nil {
+		perPage = params.PerPage
 	}
 
-	pages := int(math.Ceil(float64(total) / float64(perPage)))
-	if pages == 0 {
-		pages = 1
-	}
-
-	meta := &forms.ListMeta{
-		Total:   total,
-		Page:    params.Page,
-		PerPage: perPage,
-		Pages:   pages,
-		HasNext: params.Page < pages,
-		HasPrev: params.Page > 1,
-	}
+	meta := forms.NewCursorPageMeta(nextCursor, "", hasMore, perPage)
 
 	// Store meta in context for response methods to pick up
 	ctx := context.WithValue(c.Request().Context(), metaKey, meta)
@@ -161,8 +168,9 @@ func SetMeta(c echo.Context, total int64) {
 }
 
 // GetMeta retrieves computed pagination metadata from context.
-// Returns nil if SetMeta was not called or if pagination middleware is not enabled.
-func GetMeta(c echo.Context) *forms.ListMeta {
-	meta, _ := c.Request().Context().Value(metaKey).(*forms.ListMeta)
+// Returns nil if SetMeta/SetCursorMeta was not called or if pagination middleware is not enabled.
+// The returned PageMeta.Type indicates whether it's "offset" or "cursor" pagination.
+func GetMeta(c echo.Context) *forms.PageMeta {
+	meta, _ := c.Request().Context().Value(metaKey).(*forms.PageMeta)
 	return meta
 }
