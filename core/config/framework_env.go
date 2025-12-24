@@ -189,6 +189,15 @@ func FrameworkEnvVars() []FrameworkEnvVar {
 			Description: "Enable development mode",
 			ConfigPath:  "dev_mode",
 		},
+
+		// Logger
+		{
+			Name:        "LOGGER_LEVEL",
+			Type:        "string",
+			Default:     "info",
+			Description: "Logger level (debug, info, warn, error, fatal, panic)",
+			ConfigPath:  "logger.level",
+		},
 	}
 }
 

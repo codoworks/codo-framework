@@ -134,7 +134,10 @@ func registerFrameworkClients(cfg *config.Config) error {
 
 	// Build configs only for registered clients
 	clientConfigs := make(map[string]any)
-	clientConfigs["logger"] = nil
+	clientConfigs["logger"] = map[string]any{
+		"level":  cfg.Logger.Level,
+		"format": cfg.Logger.Format,
+	}
 	clientConfigs["db"] = &db.ClientConfig{
 		Driver:          cfg.Database.Driver,
 		DSN:             cfg.Database.DSN(),

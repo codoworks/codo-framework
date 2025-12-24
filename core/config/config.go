@@ -10,6 +10,7 @@ type Config struct {
 	Database   DatabaseConfig   `yaml:"database"`
 	Auth       AuthConfig       `yaml:"auth"`
 	RabbitMQ   RabbitMQConfig   `yaml:"rabbitmq"`
+	Logger     LoggerConfig     `yaml:"logger"`
 	Features   FeaturesConfig   `yaml:"features"`
 	Middleware MiddlewareConfig `yaml:"middleware"`
 	Errors     ErrorsConfig     `yaml:"errors"`
@@ -34,6 +35,7 @@ func NewWithDefaults() *Config {
 		Database:   DefaultDatabaseConfig(),
 		Auth:       DefaultAuthConfig(),
 		RabbitMQ:   DefaultRabbitMQConfig(),
+		Logger:     DefaultLoggerConfig(),
 		Features:   DefaultFeaturesConfig(),
 		Middleware: DefaultMiddlewareConfig(),
 		Errors:     DefaultErrorsConfig(),
@@ -91,6 +93,7 @@ func (c *Config) Clone() *Config {
 		Database:   c.Database,
 		Auth:       c.Auth,
 		RabbitMQ:   c.RabbitMQ,
+		Logger:     c.Logger,
 		Middleware: c.Middleware,
 		Errors:     c.Errors,
 		Response:   c.Response,

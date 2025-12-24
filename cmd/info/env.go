@@ -50,6 +50,7 @@ var envCmd = &cobra.Command{
 
 		// Print all configuration sections
 		printServiceConfig(out, cfg)
+		printLoggerConfig(out, cfg)
 		printServerConfig(out, cfg)
 		printDatabaseConfig(out, cfg)
 		printAuthConfig(out, cfg)
@@ -119,6 +120,14 @@ func printServiceConfig(out io.Writer, cfg *config.Config) {
 	} else {
 		fmt.Fprintf(out, "Disabled Features:  %s\n", strings.Join(cfg.Features.DisabledFeatures, ", "))
 	}
+	fmt.Fprintln(out)
+}
+
+// printLoggerConfig prints logger configuration
+func printLoggerConfig(out io.Writer, cfg *config.Config) {
+	fmt.Fprintln(out, "=== Logger Configuration ===")
+	fmt.Fprintf(out, "Level:   %s\n", cfg.Logger.Level)
+	fmt.Fprintf(out, "Format:  %s\n", cfg.Logger.Format)
 	fmt.Fprintln(out)
 }
 

@@ -178,6 +178,11 @@ func (c *Config) applyEnvOverrides() error {
 		c.DevMode = v.GetBool("DEV_MODE")
 	}
 
+	// Logger
+	if val := v.GetString("LOGGER_LEVEL"); val != "" {
+		c.Logger.Level = val
+	}
+
 	// Load features from env
 	c.Features.LoadFromEnv()
 
