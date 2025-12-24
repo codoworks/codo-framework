@@ -98,7 +98,7 @@ func configureErrorHandling(cfg *config.Config) {
 	http.SetHandlerConfig(http.HandlerConfig{
 		ExposeDetails:     cfg.Errors.Handler.ExposeDetails,
 		ExposeStackTraces: cfg.Errors.Handler.ExposeStackTraces,
-		ResponseFormat:    cfg.Errors.Handler.ResponseFormat,
+		StrictResponse:    cfg.Response.Strict,
 	})
 }
 

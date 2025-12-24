@@ -15,11 +15,6 @@ type ErrorHandlerConfig struct {
 	// ExposeStackTraces controls whether stack traces are included in responses
 	// Should NEVER be true in production (security risk)
 	ExposeStackTraces bool `yaml:"expose_stack_traces"`
-
-	// ResponseFormat controls the response format
-	// "standard" - full response with all fields
-	// "minimal" - only code and message
-	ResponseFormat string `yaml:"response_format"`
 }
 
 // ErrorCaptureConfig controls error capture behavior
@@ -43,9 +38,8 @@ type ErrorCaptureConfig struct {
 func DefaultErrorsConfig() ErrorsConfig {
 	return ErrorsConfig{
 		Handler: ErrorHandlerConfig{
-			ExposeDetails:     false,      // Don't expose details by default
-			ExposeStackTraces: false,      // NEVER expose stack traces by default
-			ResponseFormat:    "standard", // Use standard format
+			ExposeDetails:     false, // Don't expose details by default
+			ExposeStackTraces: false, // NEVER expose stack traces by default
 		},
 		Capture: ErrorCaptureConfig{
 			StackTraceOn5xx: true, // Capture stack traces for 5xx errors

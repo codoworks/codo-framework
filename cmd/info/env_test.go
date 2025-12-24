@@ -77,7 +77,6 @@ func TestEnvCmd_ShowsAllConfigSections(t *testing.T) {
 	assert.Contains(t, out, "=== RabbitMQ Configuration ===")
 	assert.Contains(t, out, "=== Middleware Configuration ===")
 	assert.Contains(t, out, "=== Errors Configuration ===")
-	assert.Contains(t, out, "=== Features Configuration ===")
 }
 
 func TestEnvCmd_ShowsServerConfig(t *testing.T) {
@@ -192,10 +191,11 @@ func TestEnvCmd_ShowsMiddlewareConfig(t *testing.T) {
 	assert.Contains(t, out, "Auth:")
 }
 
-func TestEnvCmd_ShowsFeaturesConfig(t *testing.T) {
+func TestEnvCmd_ShowsServiceConfigDetails(t *testing.T) {
 	cfg := config.NewWithDefaults()
 	cfg.Features.DisabledFeatures = []string{"rabbitmq", "kratos"}
 	cfg.DevMode = true
+	cfg.Response.Strict = true
 	cmd.SetConfig(cfg)
 	defer cmd.SetConfig(nil)
 
@@ -208,9 +208,12 @@ func TestEnvCmd_ShowsFeaturesConfig(t *testing.T) {
 
 	out := output.String()
 
-	assert.Contains(t, out, "rabbitmq")
+	// All these fields should be in Service Configuration section
+	assert.Contains(t, out, "=== Service Configuration ===")
 	assert.Contains(t, out, "Dev Mode:")
-	assert.Contains(t, out, "true")
+	assert.Contains(t, out, "Strict Response:")
+	assert.Contains(t, out, "Disabled Features:")
+	assert.Contains(t, out, "rabbitmq")
 }
 
 func TestEnvCmd_FrameworkEnvVarFromEnvironment(t *testing.T) {

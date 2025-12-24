@@ -211,3 +211,121 @@ func TestGetOrDefault_InvalidParams(t *testing.T) {
 		})
 	}
 }
+
+func TestSetMeta(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	// Set pagination params first
+	params := &pagination.Params{
+		Type:    pagination.TypeOffset,
+		Page:    2,
+		PerPage: 25,
+		Offset:  25,
+	}
+	pagination.Set(c, params)
+
+	// Now set meta with total
+	pagination.SetMeta(c, 100)
+
+	// Retrieve and verify
+	meta := pagination.GetMeta(c)
+	require.NotNil(t, meta)
+	assert.Equal(t, int64(100), meta.Total)
+	assert.Equal(t, 2, meta.Page)
+	assert.Equal(t, 25, meta.PerPage)
+	assert.Equal(t, 4, meta.Pages) // 100 / 25 = 4
+	assert.True(t, meta.HasNext)   // Page 2 < 4
+	assert.True(t, meta.HasPrev)   // Page 2 > 1
+}
+
+func TestSetMeta_WithoutParams(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	// SetMeta without params set should be a no-op
+	pagination.SetMeta(c, 100)
+
+	meta := pagination.GetMeta(c)
+	assert.Nil(t, meta)
+}
+
+func TestSetMeta_FirstPage(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	params := &pagination.Params{
+		Type:    pagination.TypeOffset,
+		Page:    1,
+		PerPage: 20,
+	}
+	pagination.Set(c, params)
+	pagination.SetMeta(c, 50)
+
+	meta := pagination.GetMeta(c)
+	require.NotNil(t, meta)
+	assert.Equal(t, 1, meta.Page)
+	assert.Equal(t, 3, meta.Pages) // 50 / 20 = 2.5 → 3
+	assert.True(t, meta.HasNext)
+	assert.False(t, meta.HasPrev) // First page
+}
+
+func TestSetMeta_LastPage(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	params := &pagination.Params{
+		Type:    pagination.TypeOffset,
+		Page:    5,
+		PerPage: 20,
+	}
+	pagination.Set(c, params)
+	pagination.SetMeta(c, 100)
+
+	meta := pagination.GetMeta(c)
+	require.NotNil(t, meta)
+	assert.Equal(t, 5, meta.Page)
+	assert.Equal(t, 5, meta.Pages) // 100 / 20 = 5
+	assert.False(t, meta.HasNext) // Last page
+	assert.True(t, meta.HasPrev)
+}
+
+func TestSetMeta_EmptyResult(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	params := &pagination.Params{
+		Type:    pagination.TypeOffset,
+		Page:    1,
+		PerPage: 20,
+	}
+	pagination.Set(c, params)
+	pagination.SetMeta(c, 0)
+
+	meta := pagination.GetMeta(c)
+	require.NotNil(t, meta)
+	assert.Equal(t, int64(0), meta.Total)
+	assert.Equal(t, 1, meta.Pages)  // At least 1 page
+	assert.False(t, meta.HasNext)
+	assert.False(t, meta.HasPrev)
+}
+
+func TestGetMeta_NotSet(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	meta := pagination.GetMeta(c)
+	assert.Nil(t, meta)
+}

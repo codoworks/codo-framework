@@ -13,6 +13,7 @@ type Config struct {
 	Features   FeaturesConfig   `yaml:"features"`
 	Middleware MiddlewareConfig `yaml:"middleware"`
 	Errors     ErrorsConfig     `yaml:"errors"`
+	Response   ResponseConfig   `yaml:"response"`
 	DevMode    bool             `yaml:"dev_mode"` // Loaded from YAML, overridable by env/CLI
 
 	// Extensions captures any additional app-specific config sections
@@ -36,6 +37,7 @@ func NewWithDefaults() *Config {
 		Features:   DefaultFeaturesConfig(),
 		Middleware: DefaultMiddlewareConfig(),
 		Errors:     DefaultErrorsConfig(),
+		Response:   DefaultResponseConfig(),
 		DevMode:    false,
 		Extensions: make(map[string]interface{}),
 	}
@@ -90,6 +92,8 @@ func (c *Config) Clone() *Config {
 		Auth:       c.Auth,
 		RabbitMQ:   c.RabbitMQ,
 		Middleware: c.Middleware,
+		Errors:     c.Errors,
+		Response:   c.Response,
 		Features: FeaturesConfig{
 			DisabledFeatures: make([]string, len(c.Features.DisabledFeatures)),
 		},

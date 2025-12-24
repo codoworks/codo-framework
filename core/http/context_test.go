@@ -262,3 +262,41 @@ func (v *testContextValidator) Validate(i interface{}) error {
 	}
 	return nil
 }
+
+func TestContext_SendError_StrictMode(t *testing.T) {
+	t.Run("strict mode disabled - errors can be null", func(t *testing.T) {
+		// Save and restore original config
+		originalCfg := GetHandlerConfig()
+		defer SetHandlerConfig(originalCfg)
+
+		SetHandlerConfig(HandlerConfig{StrictResponse: false})
+
+		c, rec := newTestContext(http.MethodGet, "/", "")
+		err := c.SendError(&ParamError{Param: "id", Message: "required"})
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		// In non-strict mode, empty arrays may be null/omitted
+		body := rec.Body.String()
+		assert.Contains(t, body, `"code":"BAD_REQUEST"`)
+	})
+
+	t.Run("strict mode enabled - errors is empty array", func(t *testing.T) {
+		// Save and restore original config
+		originalCfg := GetHandlerConfig()
+		defer SetHandlerConfig(originalCfg)
+
+		SetHandlerConfig(HandlerConfig{StrictResponse: true})
+
+		c, rec := newTestContext(http.MethodGet, "/", "")
+		err := c.SendError(&ParamError{Param: "id", Message: "required"})
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		// In strict mode, errors must be an empty array not null
+		body := rec.Body.String()
+		assert.Contains(t, body, `"code":"BAD_REQUEST"`)
+		assert.Contains(t, body, `"errors":[]`)
+		assert.Contains(t, body, `"warnings":[]`)
+	})
+}

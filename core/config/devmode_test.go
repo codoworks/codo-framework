@@ -96,3 +96,39 @@ func TestConfig_DevModeOverrides_NotCalledWhenDisabling(t *testing.T) {
 
 	assert.False(t, cfg.IsDevMode())
 }
+
+func TestConfig_DevModeOverrides_EnablesExposeDetails(t *testing.T) {
+	cfg := NewWithDefaults()
+
+	// Defaults should be false
+	assert.False(t, cfg.Errors.Handler.ExposeDetails)
+	assert.False(t, cfg.Errors.Handler.ExposeStackTraces)
+
+	cfg.SetDevMode(true)
+
+	// DevMode should enable both
+	assert.True(t, cfg.Errors.Handler.ExposeDetails)
+	assert.True(t, cfg.Errors.Handler.ExposeStackTraces)
+}
+
+func TestConfig_DevModeOverrides_EnablesAuthDevMode(t *testing.T) {
+	cfg := NewWithDefaults()
+
+	assert.False(t, cfg.Middleware.Auth.DevMode)
+
+	cfg.SetDevMode(true)
+
+	assert.True(t, cfg.Middleware.Auth.DevMode)
+}
+
+func TestConfig_DevModeOverrides_DoesNotEnableWhenDisabled(t *testing.T) {
+	cfg := NewWithDefaults()
+
+	// Start with dev mode disabled
+	cfg.SetDevMode(false)
+
+	// These should remain false
+	assert.False(t, cfg.Errors.Handler.ExposeDetails)
+	assert.False(t, cfg.Errors.Handler.ExposeStackTraces)
+	assert.False(t, cfg.Middleware.Auth.DevMode)
+}

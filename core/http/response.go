@@ -5,14 +5,15 @@ import (
 	"sync"
 
 	"github.com/codoworks/codo-framework/core/errors"
+	"github.com/codoworks/codo-framework/core/forms"
 )
 
 // HandlerConfig holds settings for HTTP error response behavior
 // Set via SetHandlerConfig during initialization
 type HandlerConfig struct {
-	ExposeDetails     bool   // Include error details in response
-	ExposeStackTraces bool   // Include stack traces in response (NEVER in production)
-	ResponseFormat    string // "standard" or "minimal"
+	ExposeDetails     bool // Include error details in response
+	ExposeStackTraces bool // Include stack traces in response (NEVER in production)
+	StrictResponse    bool // Include all fields in responses (no omitempty behavior)
 }
 
 // defaultHandlerConfig returns safe defaults (production-ready)
@@ -20,7 +21,6 @@ func defaultHandlerConfig() HandlerConfig {
 	return HandlerConfig{
 		ExposeDetails:     false,
 		ExposeStackTraces: false,
-		ResponseFormat:    "standard",
 	}
 }
 
@@ -54,14 +54,50 @@ type ValidationError struct {
 type Response struct {
 	Code       string             `json:"code"`
 	Message    string             `json:"message"`
-	Errors     []ValidationError  `json:"errors,omitempty"`   // BREAKING CHANGE: was []string, now structured
+	Errors     []ValidationError  `json:"errors,omitempty"`   // Structured validation errors
 	Warnings   []Warning          `json:"warnings,omitempty"` // Non-fatal issues (partial failures, deprecations)
 	Payload    any                `json:"payload,omitempty"`
+	Page       *forms.ListMeta    `json:"page,omitempty"`     // Pagination metadata (set via pagination.SetMeta)
 	HTTPStatus int                `json:"-"`
 
 	// Debug fields (only included when config.ExposeDetails/ExposeStackTraces is true)
 	Details    map[string]any       `json:"details,omitempty"`    // Error details (dev mode only)
 	StackTrace []errors.StackFrame  `json:"stackTrace,omitempty"` // Stack trace (dev mode only, NEVER in production)
+}
+
+// StrictResponse is a wrapper for Response that always includes all fields
+// Used when response.strict config is true
+type StrictResponse struct {
+	Code       string              `json:"code"`
+	Message    string              `json:"message"`
+	Errors     []ValidationError   `json:"errors"`   // No omitempty - always present
+	Warnings   []Warning           `json:"warnings"` // No omitempty - always present
+	Payload    any                 `json:"payload"`  // No omitempty - null if empty
+	Page       *forms.ListMeta     `json:"page"`     // No omitempty - null if empty
+	Details    map[string]any      `json:"details,omitempty"`    // Still conditional on config
+	StackTrace []errors.StackFrame `json:"stackTrace,omitempty"` // Still conditional on config
+}
+
+// ToStrict converts Response to StrictResponse (ensures empty arrays not nil)
+func (r *Response) ToStrict() StrictResponse {
+	errs := r.Errors
+	if errs == nil {
+		errs = []ValidationError{}
+	}
+	warnings := r.Warnings
+	if warnings == nil {
+		warnings = []Warning{}
+	}
+	return StrictResponse{
+		Code:       r.Code,
+		Message:    r.Message,
+		Errors:     errs,
+		Warnings:   warnings,
+		Payload:    r.Payload,
+		Page:       r.Page,
+		Details:    r.Details,
+		StackTrace: r.StackTrace,
+	}
 }
 
 // APIError is an error that carries HTTP status and code information

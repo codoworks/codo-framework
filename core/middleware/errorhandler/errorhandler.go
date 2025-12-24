@@ -107,6 +107,10 @@ func (m *ErrorHandlerMiddleware) Handler() echo.MiddlewareFunc {
 
 			// Render HTTP response
 			resp := httpPkg.ErrorResponse(fwkErr)
+			cfg := httpPkg.GetHandlerConfig()
+			if cfg.StrictResponse {
+				return c.JSON(resp.HTTPStatus, resp.ToStrict())
+			}
 			return c.JSON(resp.HTTPStatus, resp)
 		}
 	}

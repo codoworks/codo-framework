@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+
+	"github.com/codoworks/codo-framework/core/pagination"
 )
 
 // Context extends echo.Context with additional helpers
@@ -146,14 +148,27 @@ func (c *Context) QueryUUIDOptional(name string) (string, error) {
 func (c *Context) Success(payload any) error {
 	resp := Success(payload)
 	resp.Warnings = c.warnings
-	return c.JSON(http.StatusOK, resp)
+
+	// Pick up pagination metadata if set by handler via pagination.SetMeta()
+	resp.Page = pagination.GetMeta(c.Context)
+
+	return c.respond(http.StatusOK, resp)
 }
 
 // Created sends a 201 Created response with any accumulated warnings
 func (c *Context) Created(payload any) error {
 	resp := Created(payload)
 	resp.Warnings = c.warnings
-	return c.JSON(http.StatusCreated, resp)
+	return c.respond(http.StatusCreated, resp)
+}
+
+// respond is a helper that applies strict mode if configured
+func (c *Context) respond(status int, resp *Response) error {
+	cfg := GetHandlerConfig()
+	if cfg.StrictResponse {
+		return c.Context.JSON(status, resp.ToStrict())
+	}
+	return c.Context.JSON(status, resp)
 }
 
 // NoContent sends a 204 No Content response
@@ -164,7 +179,7 @@ func (c *Context) NoContent() error {
 // SendError sends an error response
 func (c *Context) SendError(err error) error {
 	resp := ErrorResponse(err)
-	return c.JSON(resp.HTTPStatus, resp)
+	return c.respond(resp.HTTPStatus, resp)
 }
 
 // GetRequestID returns the request ID from context

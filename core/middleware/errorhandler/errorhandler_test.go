@@ -166,3 +166,59 @@ func TestErrorHandlerMiddleware_RequestContextEnrichment(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
+
+func TestErrorHandlerMiddleware_StrictMode(t *testing.T) {
+	m := &ErrorHandlerMiddleware{}
+	handler := m.Handler()
+
+	t.Run("strict mode disabled", func(t *testing.T) {
+		// Save and restore original config
+		originalCfg := httpPkg.GetHandlerConfig()
+		defer httpPkg.SetHandlerConfig(originalCfg)
+
+		httpPkg.SetHandlerConfig(httpPkg.HandlerConfig{StrictResponse: false})
+
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		h := handler(func(c echo.Context) error {
+			return errors.NotFound("not found")
+		})
+
+		err := h(c)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+
+		var resp httpPkg.Response
+		json.Unmarshal(rec.Body.Bytes(), &resp)
+		assert.Equal(t, errors.CodeNotFound, resp.Code)
+	})
+
+	t.Run("strict mode enabled - errors is empty array", func(t *testing.T) {
+		// Save and restore original config
+		originalCfg := httpPkg.GetHandlerConfig()
+		defer httpPkg.SetHandlerConfig(originalCfg)
+
+		httpPkg.SetHandlerConfig(httpPkg.HandlerConfig{StrictResponse: true})
+
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		h := handler(func(c echo.Context) error {
+			return errors.NotFound("not found")
+		})
+
+		err := h(c)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+
+		// In strict mode, errors and warnings must be empty arrays
+		body := rec.Body.String()
+		assert.Contains(t, body, `"errors":[]`)
+		assert.Contains(t, body, `"warnings":[]`)
+	})
+}

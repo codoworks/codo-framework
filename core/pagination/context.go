@@ -3,9 +3,12 @@ package pagination
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+
+	"github.com/codoworks/codo-framework/core/forms"
 )
 
 // Context keys
@@ -13,6 +16,7 @@ type contextKey string
 
 const (
 	paramsKey contextKey = "pagination"
+	metaKey   contextKey = "pagination_meta"
 )
 
 // ErrNoPagination is returned when no pagination params are in context
@@ -111,4 +115,54 @@ func queryInt(c echo.Context, name string, defaultVal int) int {
 		return defaultVal
 	}
 	return result
+}
+
+// SetMeta stores computed pagination metadata in context for response inclusion.
+// Call this from handlers after querying total count to populate the Page field
+// in the standard response.
+//
+// Example:
+//
+//	func (h *Handler) List(c *http.Context) error {
+//	    pg := pagination.Get(c)
+//	    items, _ := h.service.FindAll(ctx, pg.QueryOptions()...)
+//	    total, _ := h.service.Count(ctx)
+//	    pagination.SetMeta(c, total)  // Sets Page metadata
+//	    return c.Success(items)       // Response includes Page field
+//	}
+func SetMeta(c echo.Context, total int64) {
+	params := Get(c)
+	if params == nil {
+		return
+	}
+
+	perPage := params.PerPage
+	if perPage <= 0 {
+		perPage = 20
+	}
+
+	pages := int(math.Ceil(float64(total) / float64(perPage)))
+	if pages == 0 {
+		pages = 1
+	}
+
+	meta := &forms.ListMeta{
+		Total:   total,
+		Page:    params.Page,
+		PerPage: perPage,
+		Pages:   pages,
+		HasNext: params.Page < pages,
+		HasPrev: params.Page > 1,
+	}
+
+	// Store meta in context for response methods to pick up
+	ctx := context.WithValue(c.Request().Context(), metaKey, meta)
+	c.SetRequest(c.Request().WithContext(ctx))
+}
+
+// GetMeta retrieves computed pagination metadata from context.
+// Returns nil if SetMeta was not called or if pagination middleware is not enabled.
+func GetMeta(c echo.Context) *forms.ListMeta {
+	meta, _ := c.Request().Context().Value(metaKey).(*forms.ListMeta)
+	return meta
 }

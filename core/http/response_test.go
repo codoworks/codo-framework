@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/codoworks/codo-framework/core/forms"
 )
 
 func TestSuccess(t *testing.T) {
@@ -220,4 +222,122 @@ func TestNewAPIError(t *testing.T) {
 	assert.Equal(t, "Custom message", err.Message)
 	assert.Equal(t, http.StatusTeapot, err.HTTPStatus)
 	assert.Equal(t, "Custom message", err.Error())
+}
+
+func TestResponse_ToStrict(t *testing.T) {
+	t.Run("converts nil slices to empty slices", func(t *testing.T) {
+		resp := &Response{
+			Code:    "OK",
+			Message: "Success",
+			// Errors and Warnings are nil
+		}
+
+		strict := resp.ToStrict()
+
+		assert.NotNil(t, strict.Errors)
+		assert.Len(t, strict.Errors, 0)
+		assert.NotNil(t, strict.Warnings)
+		assert.Len(t, strict.Warnings, 0)
+	})
+
+	t.Run("preserves existing values", func(t *testing.T) {
+		resp := &Response{
+			Code:    "OK",
+			Message: "Success",
+			Errors: []ValidationError{
+				{Field: "email", Message: "required"},
+			},
+			Warnings: []Warning{
+				{Code: "DEPRECATED", Message: "API deprecated"},
+			},
+			Payload: map[string]string{"key": "value"},
+		}
+
+		strict := resp.ToStrict()
+
+		assert.Equal(t, "OK", strict.Code)
+		assert.Equal(t, "Success", strict.Message)
+		assert.Len(t, strict.Errors, 1)
+		assert.Equal(t, "email", strict.Errors[0].Field)
+		assert.Len(t, strict.Warnings, 1)
+		assert.Equal(t, "DEPRECATED", strict.Warnings[0].Code)
+		assert.Equal(t, map[string]string{"key": "value"}, strict.Payload)
+	})
+
+	t.Run("preserves Page when set", func(t *testing.T) {
+		resp := &Response{
+			Code:    "OK",
+			Message: "Success",
+			Page: &forms.ListMeta{
+				Total:   100,
+				Page:    2,
+				PerPage: 25,
+				Pages:   4,
+				HasNext: true,
+				HasPrev: true,
+			},
+		}
+
+		strict := resp.ToStrict()
+
+		assert.NotNil(t, strict.Page)
+		assert.Equal(t, int64(100), strict.Page.Total)
+		assert.Equal(t, 2, strict.Page.Page)
+	})
+
+	t.Run("Page is nil when not set", func(t *testing.T) {
+		resp := &Response{
+			Code:    "OK",
+			Message: "Success",
+		}
+
+		strict := resp.ToStrict()
+
+		assert.Nil(t, strict.Page)
+	})
+}
+
+func TestResponse_Page_Field(t *testing.T) {
+	t.Run("Page can be set directly", func(t *testing.T) {
+		resp := Success(nil)
+		resp.Page = &forms.ListMeta{
+			Total:   50,
+			Page:    1,
+			PerPage: 20,
+			Pages:   3,
+			HasNext: true,
+			HasPrev: false,
+		}
+
+		assert.NotNil(t, resp.Page)
+		assert.Equal(t, int64(50), resp.Page.Total)
+		assert.Equal(t, 1, resp.Page.Page)
+		assert.Equal(t, 20, resp.Page.PerPage)
+		assert.True(t, resp.Page.HasNext)
+		assert.False(t, resp.Page.HasPrev)
+	})
+
+	t.Run("Page defaults to nil", func(t *testing.T) {
+		resp := Success(nil)
+		assert.Nil(t, resp.Page)
+	})
+}
+
+func TestHandlerConfig_StrictResponse(t *testing.T) {
+	t.Run("default is false", func(t *testing.T) {
+		cfg := defaultHandlerConfig()
+		assert.False(t, cfg.StrictResponse)
+	})
+
+	t.Run("can be set to true", func(t *testing.T) {
+		SetHandlerConfig(HandlerConfig{
+			StrictResponse: true,
+		})
+
+		cfg := GetHandlerConfig()
+		assert.True(t, cfg.StrictResponse)
+
+		// Reset to default
+		SetHandlerConfig(defaultHandlerConfig())
+	})
 }

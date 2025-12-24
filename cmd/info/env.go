@@ -56,8 +56,7 @@ var envCmd = &cobra.Command{
 		printRabbitMQConfig(out, cfg)
 		printMiddlewareConfig(out, cfg)
 		printErrorsConfig(out, cfg)
-		printFeaturesConfig(out, cfg)
-
+	
 		// Print consumer environment variables if available
 		if configApp, ok := application.(app.ConfigApp); ok {
 			if registry := configApp.EnvRegistry(); registry != nil {
@@ -112,7 +111,14 @@ func printFrameworkEnvVars(out io.Writer, cfg *config.Config) {
 // printServiceConfig prints service configuration
 func printServiceConfig(out io.Writer, cfg *config.Config) {
 	fmt.Fprintln(out, "=== Service Configuration ===")
-	fmt.Fprintf(out, "Environment:  %s\n", cfg.Service.Environment)
+	fmt.Fprintf(out, "Environment:        %s\n", cfg.Service.Environment)
+	fmt.Fprintf(out, "Dev Mode:           %v\n", cfg.DevMode)
+	fmt.Fprintf(out, "Strict Response:    %v\n", cfg.Response.Strict)
+	if len(cfg.Features.DisabledFeatures) == 0 {
+		fmt.Fprintln(out, "Disabled Features:  (none)")
+	} else {
+		fmt.Fprintf(out, "Disabled Features:  %s\n", strings.Join(cfg.Features.DisabledFeatures, ", "))
+	}
 	fmt.Fprintln(out)
 }
 
@@ -223,21 +229,8 @@ func printErrorsConfig(out io.Writer, cfg *config.Config) {
 	fmt.Fprintln(out, "=== Errors Configuration ===")
 	fmt.Fprintf(out, "Expose Details:       %v\n", cfg.Errors.Handler.ExposeDetails)
 	fmt.Fprintf(out, "Expose Stack Traces:  %v\n", cfg.Errors.Handler.ExposeStackTraces)
-	fmt.Fprintf(out, "Response Format:      %s\n", cfg.Errors.Handler.ResponseFormat)
 	fmt.Fprintf(out, "Stack Trace on 5xx:   %v\n", cfg.Errors.Capture.StackTraceOn5xx)
 	fmt.Fprintf(out, "Stack Trace Depth:    %d\n", cfg.Errors.Capture.StackTraceDepth)
-	fmt.Fprintln(out)
-}
-
-// printFeaturesConfig prints features configuration
-func printFeaturesConfig(out io.Writer, cfg *config.Config) {
-	fmt.Fprintln(out, "=== Features Configuration ===")
-	if len(cfg.Features.DisabledFeatures) == 0 {
-		fmt.Fprintln(out, "Disabled Features:  (none)")
-	} else {
-		fmt.Fprintf(out, "Disabled Features:  %s\n", strings.Join(cfg.Features.DisabledFeatures, ", "))
-	}
-	fmt.Fprintf(out, "Dev Mode:           %v\n", cfg.DevMode)
 	fmt.Fprintln(out)
 }
 
