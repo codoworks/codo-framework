@@ -114,3 +114,17 @@ func GetValidator() *validator.Validate {
 func RegisterValidation(tag string, fn validator.Func) error {
 	return validate.RegisterValidation(tag, fn)
 }
+
+// echoValidator adapts the package-level Validate function to Echo's Validator interface.
+// This ensures c.Validate() works if consumers accidentally call it directly.
+type echoValidator struct{}
+
+// Validate implements echo.Validator interface by delegating to the package-level Validate function.
+func (e *echoValidator) Validate(i any) error {
+	return Validate(i)
+}
+
+// NewEchoValidator returns a validator adapter for Echo.
+func NewEchoValidator() *echoValidator {
+	return &echoValidator{}
+}

@@ -22,7 +22,7 @@ func (c *Context) BindAndValidate(form any) error {
 	if err := c.Bind(form); err != nil {
 		return &BindError{Cause: err, BindType: BindTypeJSON}
 	}
-	if err := c.Validate(form); err != nil {
+	if err := Validate(form); err != nil {
 		return err
 	}
 	return nil

@@ -268,7 +268,8 @@ func TestResponse_ToStrict(t *testing.T) {
 		resp := &Response{
 			Code:    "OK",
 			Message: "Success",
-			Page: &forms.ListMeta{
+			Page: &forms.PageMeta{
+				Type:    "offset",
 				Total:   100,
 				Page:    2,
 				PerPage: 25,
@@ -300,7 +301,8 @@ func TestResponse_ToStrict(t *testing.T) {
 func TestResponse_Page_Field(t *testing.T) {
 	t.Run("Page can be set directly", func(t *testing.T) {
 		resp := Success(nil)
-		resp.Page = &forms.ListMeta{
+		resp.Page = &forms.PageMeta{
+			Type:    "offset",
 			Total:   50,
 			Page:    1,
 			PerPage: 20,

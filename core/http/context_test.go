@@ -213,7 +213,6 @@ func TestContext_BindAndValidate(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		e := echo.New()
-		e.Validator = &testContextValidator{}
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"test"}`))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -240,7 +239,6 @@ func TestContext_BindAndValidate(t *testing.T) {
 
 	t.Run("validation error", func(t *testing.T) {
 		e := echo.New()
-		e.Validator = &testContextValidator{shouldFail: true}
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":""}`))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -249,18 +247,8 @@ func TestContext_BindAndValidate(t *testing.T) {
 		var form testForm
 		err := c.BindAndValidate(&form)
 		assert.Error(t, err)
+		assert.IsType(t, &ValidationErrorList{}, err)
 	})
-}
-
-type testContextValidator struct {
-	shouldFail bool
-}
-
-func (v *testContextValidator) Validate(i interface{}) error {
-	if v.shouldFail {
-		return echo.NewHTTPError(http.StatusBadRequest, "validation failed")
-	}
-	return nil
 }
 
 func TestContext_SendError_StrictMode(t *testing.T) {

@@ -428,3 +428,25 @@ func TestValidate_DefaultValidation(t *testing.T) {
 	assert.True(t, ok)
 	assert.Contains(t, verr.Errors[0].Message, "failed")
 }
+
+func TestNewEchoValidator(t *testing.T) {
+	v := NewEchoValidator()
+	assert.NotNil(t, v)
+
+	type form struct {
+		Name string `json:"name" validate:"required"`
+	}
+
+	t.Run("validates successfully", func(t *testing.T) {
+		f := &form{Name: "test"}
+		err := v.Validate(f)
+		assert.NoError(t, err)
+	})
+
+	t.Run("returns validation error", func(t *testing.T) {
+		f := &form{Name: ""}
+		err := v.Validate(f)
+		assert.Error(t, err)
+		assert.IsType(t, &ValidationErrorList{}, err)
+	})
+}

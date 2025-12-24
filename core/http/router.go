@@ -22,6 +22,7 @@ func NewRouter(scope RouterScope, addr string) *Router {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
+	e.Validator = NewEchoValidator()
 
 	return &Router{
 		echo:  e,

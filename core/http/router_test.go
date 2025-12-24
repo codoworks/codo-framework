@@ -19,6 +19,7 @@ func TestNewRouter(t *testing.T) {
 	assert.Equal(t, ScopePublic, r.Scope())
 	assert.Equal(t, ":8080", r.Addr())
 	assert.NotNil(t, r.Echo())
+	assert.NotNil(t, r.Echo().Validator, "Validator should be auto-set")
 }
 
 func TestRouter_Scope(t *testing.T) {
