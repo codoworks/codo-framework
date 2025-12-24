@@ -92,7 +92,7 @@ const (
 	// Feature middleware (100-199): Built-in, configurable
 	PriorityFeatureMin      = 100
 	PriorityFeatureMax      = 199
-	PriorityLogger          = 100 // Request/response logging
+	PriorityLogger          = 5 // Request/response logging (runs outside ErrorHandler to capture final status)
 	PriorityPagination      = 102 // Pagination parameter extraction (after logger for logging)
 	PriorityAuth            = 105 // Authentication (Kratos session validation)
 	PriorityTimeout         = 110 // Request timeout
