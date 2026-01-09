@@ -145,6 +145,28 @@ func RenderCLI(err error) {
 		}
 	}
 
+	// Trace points (if present in details)
+	// These show the breadcrumb trail through the error wrapping chain
+	if tracePoints, ok := mappedErr.Details["tracePoints"].([]TracePoint); ok && len(tracePoints) > 0 {
+		cfg := GetCLIConfig()
+		fmt.Fprintf(os.Stderr, "\n%s\n", labelColor.Sprint("Error Trace:"))
+		for i, tp := range tracePoints {
+			if i >= cfg.MaxStackFrames {
+				fmt.Fprintf(os.Stderr, "  %s\n", dimColor.Sprint("... (more trace points)"))
+				break
+			}
+			msg := tp.Message
+			if msg == "" {
+				msg = "(wrapped)"
+			}
+			fmt.Fprintf(os.Stderr, "  %s %s\n", dimColor.Sprint("→"), valueColor.Sprint(msg))
+			fmt.Fprintf(os.Stderr, "    %s %s:%d\n", dimColor.Sprint("at"), dimColor.Sprint(tp.File), tp.Line)
+			if tp.Function != "" {
+				fmt.Fprintf(os.Stderr, "    %s\n", dimColor.Sprint(tp.Function))
+			}
+		}
+	}
+
 	// Footer
 	fmt.Fprintln(os.Stderr, borderColor.Sprint(border))
 	fmt.Fprintln(os.Stderr)

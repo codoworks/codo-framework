@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	fwkerrors "github.com/codoworks/codo-framework/core/errors"
 	"github.com/codoworks/codo-framework/core/forms"
 )
 
@@ -342,4 +343,106 @@ func TestHandlerConfig_StrictResponse(t *testing.T) {
 		// Reset to default
 		SetHandlerConfig(defaultHandlerConfig())
 	})
+}
+
+func TestErrorResponse_ExposeDetails_IncludesStackTrace(t *testing.T) {
+	// Enable stack traces for 5xx errors (default behavior)
+	fwkerrors.SetCaptureConfig(fwkerrors.CaptureConfig{
+		StackTraceOn5xx: true,
+		StackTraceDepth: 10,
+	})
+
+	t.Run("stack trace in details when ExposeDetails is true", func(t *testing.T) {
+		// Enable ExposeDetails
+		SetHandlerConfig(HandlerConfig{
+			ExposeDetails:     true,
+			ExposeStackTraces: false, // Only ExposeDetails, not ExposeStackTraces
+		})
+		defer SetHandlerConfig(defaultHandlerConfig())
+
+		// Create a framework error with stack trace (5xx errors get stack traces)
+		err := fwkerrors.Internal("test error")
+
+		resp := ErrorResponse(err)
+
+		// Should have details with stack trace
+		assert.NotNil(t, resp.Details)
+		stackTrace, ok := resp.Details["stackTrace"]
+		assert.True(t, ok, "details should contain stackTrace")
+		assert.NotNil(t, stackTrace, "stackTrace should not be nil")
+
+		// The top-level StackTrace should NOT be set (only ExposeDetails is true)
+		assert.Nil(t, resp.StackTrace)
+	})
+
+	t.Run("no details when ExposeDetails is false", func(t *testing.T) {
+		// Disable ExposeDetails
+		SetHandlerConfig(HandlerConfig{
+			ExposeDetails:     false,
+			ExposeStackTraces: false,
+		})
+		defer SetHandlerConfig(defaultHandlerConfig())
+
+		err := fwkerrors.Internal("test error")
+
+		resp := ErrorResponse(err)
+
+		// Should have no details
+		assert.Nil(t, resp.Details)
+		assert.Nil(t, resp.StackTrace)
+	})
+
+	t.Run("both details and top-level stackTrace when both enabled", func(t *testing.T) {
+		// Enable both
+		SetHandlerConfig(HandlerConfig{
+			ExposeDetails:     true,
+			ExposeStackTraces: true,
+		})
+		defer SetHandlerConfig(defaultHandlerConfig())
+
+		err := fwkerrors.Internal("test error")
+
+		resp := ErrorResponse(err)
+
+		// Should have both
+		assert.NotNil(t, resp.Details)
+		_, hasStackInDetails := resp.Details["stackTrace"]
+		assert.True(t, hasStackInDetails, "details should contain stackTrace")
+		assert.NotNil(t, resp.StackTrace, "top-level StackTrace should also be set")
+	})
+}
+
+func TestErrorResponse_ExposeDetails_IncludesAllDebugInfo(t *testing.T) {
+	// Enable stack traces
+	fwkerrors.SetCaptureConfig(fwkerrors.CaptureConfig{
+		StackTraceOn5xx: true,
+		StackTraceDepth: 10,
+	})
+
+	SetHandlerConfig(HandlerConfig{
+		ExposeDetails: true,
+	})
+	defer SetHandlerConfig(defaultHandlerConfig())
+
+	// Create an error with cause
+	cause := errors.New("underlying cause")
+	err := fwkerrors.WrapInternal(cause, "wrapped error")
+
+	resp := ErrorResponse(err)
+
+	assert.NotNil(t, resp.Details)
+
+	// Should have causeMessage
+	causeMsg, hasCause := resp.Details["causeMessage"]
+	assert.True(t, hasCause, "should have causeMessage")
+	assert.Contains(t, causeMsg, "underlying cause")
+
+	// Should have location
+	location, hasLocation := resp.Details["location"]
+	assert.True(t, hasLocation, "should have location")
+	assert.NotNil(t, location)
+
+	// Should have stackTrace
+	_, hasStack := resp.Details["stackTrace"]
+	assert.True(t, hasStack, "should have stackTrace")
 }

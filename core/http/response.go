@@ -187,14 +187,36 @@ func ErrorResponse(err error) *Response {
 	}
 
 	// Optionally expose details (dev mode only)
-	if cfg.ExposeDetails && len(fwkErr.Details) > 0 {
-		// Filter out validationErrors since they're already in resp.Errors
+	if cfg.ExposeDetails {
 		details := make(map[string]any)
+
+		// Include error details (filtering out validationErrors)
 		for k, v := range fwkErr.Details {
 			if k != "validationErrors" {
 				details[k] = v
 			}
 		}
+
+		// Include full cause message for debugging
+		// This shows the complete error chain message when available
+		if fwkErr.Cause != nil {
+			details["causeMessage"] = fwkErr.Cause.Error()
+		}
+
+		// Include caller location if available
+		if fwkErr.Caller != nil {
+			details["location"] = map[string]any{
+				"file":     fwkErr.Caller.File,
+				"line":     fwkErr.Caller.Line,
+				"function": fwkErr.Caller.Function,
+			}
+		}
+
+		// Include stack trace in details for complete debugging info
+		if len(fwkErr.StackTrace) > 0 {
+			details["stackTrace"] = fwkErr.StackTrace
+		}
+
 		if len(details) > 0 {
 			resp.Details = details
 		}

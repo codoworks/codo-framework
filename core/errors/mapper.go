@@ -79,6 +79,51 @@ func (m *ErrorMapper) registerDefaults() {
 		LogLevel:   LogLevelWarn,
 		Message:    "Request canceled",
 	})
+
+	// OS error predicates - auto-map common file system errors
+	// These work with wrapped errors via errors.Is()
+
+	m.RegisterPredicate(isPermissionDenied, MappingSpec{
+		Code:       CodeForbidden,
+		HTTPStatus: 403,
+		LogLevel:   LogLevelError,
+		Message:    "Permission denied",
+	})
+
+	m.RegisterPredicate(isNotExist, MappingSpec{
+		Code:       CodeNotFound,
+		HTTPStatus: 404,
+		LogLevel:   LogLevelWarn,
+		Message:    "Resource not found",
+	})
+
+	m.RegisterPredicate(isAlreadyExists, MappingSpec{
+		Code:       CodeConflict,
+		HTTPStatus: 409,
+		LogLevel:   LogLevelWarn,
+		Message:    "Resource already exists",
+	})
+
+	m.RegisterPredicate(isTimeout, MappingSpec{
+		Code:       CodeTimeout,
+		HTTPStatus: 408,
+		LogLevel:   LogLevelWarn,
+		Message:    "Operation timed out",
+	})
+
+	m.RegisterPredicate(isClosed, MappingSpec{
+		Code:       CodeUnavailable,
+		HTTPStatus: 503,
+		LogLevel:   LogLevelError,
+		Message:    "Resource temporarily unavailable",
+	})
+
+	m.RegisterPredicate(isNoSpace, MappingSpec{
+		Code:       CodeUnavailable,
+		HTTPStatus: 507,
+		LogLevel:   LogLevelError,
+		Message:    "Insufficient storage",
+	})
 }
 
 // RegisterSentinel registers a sentinel error mapping
@@ -181,8 +226,8 @@ func (m *ErrorMapper) MapError(err error) *Error {
 		}
 	}
 
-	// Default: internal error
-	return WrapInternal(err, "An unexpected error occurred")
+	// Default: internal error with preserved error chain
+	return wrapUnknownError(err)
 }
 
 // createFromSpec creates an Error from a MappingSpec
@@ -245,4 +290,90 @@ func GetMapper() *ErrorMapper {
 // MapError is a convenience function that uses the global mapper
 func MapError(err error) *Error {
 	return globalMapper.MapError(err)
+}
+
+// wrapUnknownError creates a framework error from an unknown error type,
+// preserving the full error chain message for debugging while keeping
+// a generic user-facing message.
+func wrapUnknownError(err error) *Error {
+	// Use the full error chain as the developer-facing message
+	fullMessage := err.Error()
+
+	// Create the framework error with the full chain as the message
+	e := newWithSkip(CodeInternal, fullMessage, 500, 3)
+	e.Cause = err
+
+	if e.Details == nil {
+		e.Details = make(map[string]any)
+	}
+
+	// Extract trace points if any TracedErrors exist in the chain
+	// This provides better location info than the default stack trace
+	tracePoints := ExtractTracePoints(err)
+	if len(tracePoints) > 0 {
+		e.Details["tracePoints"] = tracePoints
+
+		// Use the deepest trace point (last one) as the caller location
+		// since it's closest to the original error
+		deepest := tracePoints[len(tracePoints)-1]
+		e.Caller = &CallerInfo{
+			File:     deepest.File,
+			Line:     deepest.Line,
+			Function: deepest.Function,
+		}
+	} else {
+		// Fallback: extract error chain messages for debugging
+		chain := extractErrorChain(err)
+		if len(chain) > 1 {
+			e.Details["errorChain"] = chain
+		}
+	}
+
+	// Clean up empty details map
+	if len(e.Details) == 0 {
+		e.Details = nil
+	}
+
+	// Set a generic user-facing message (safe for end users)
+	e.UserMessage = "An unexpected error occurred"
+	e.MarkInternal()
+
+	return e
+}
+
+// extractErrorChain walks the error chain and returns all unique messages.
+// This provides visibility into the full error context for debugging.
+func extractErrorChain(err error) []string {
+	var chain []string
+	seen := make(map[string]bool)
+	current := err
+
+	for current != nil {
+		msg := current.Error()
+		// Avoid duplicate messages (common when errors just wrap without adding context)
+		if !seen[msg] {
+			chain = append(chain, msg)
+			seen[msg] = true
+		}
+		current = unwrapError(current)
+	}
+
+	return chain
+}
+
+// unwrapError extracts the wrapped error if any.
+// Supports both single Unwrap() and multi-error Unwrap() []error (returns first).
+func unwrapError(err error) error {
+	switch e := err.(type) {
+	case interface{ Unwrap() error }:
+		return e.Unwrap()
+	case interface{ Unwrap() []error }:
+		errs := e.Unwrap()
+		if len(errs) > 0 {
+			return errs[0]
+		}
+		return nil
+	default:
+		return nil
+	}
 }

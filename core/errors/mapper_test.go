@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -200,7 +201,10 @@ func TestMapError_DefaultInternalError(t *testing.T) {
 
 	assert.Equal(t, CodeInternal, result.Code)
 	assert.Equal(t, 500, result.HTTPStatus)
-	assert.Equal(t, "An unexpected error occurred", result.Message)
+	// Message now preserves the full error chain (new behavior)
+	assert.Equal(t, "some unknown error", result.Message)
+	// UserMessage is the generic safe message for end users
+	assert.Equal(t, "An unexpected error occurred", result.UserMessage)
 	assert.Equal(t, err, result.Cause) // Original error preserved
 }
 
@@ -265,4 +269,148 @@ func TestRegisterType_NilPointer(t *testing.T) {
 	// And should work correctly
 	result := mapper.MapError(&customError{msg: "test"})
 	assert.Equal(t, "TEST", result.Code)
+}
+
+// Tests for error chain preservation (Phase 1)
+
+func TestMapError_PreservesErrorChainMessage(t *testing.T) {
+	// Simulate a typical error chain like MAFS would create
+	innerErr := fmt.Errorf("permission denied")
+	middleErr := fmt.Errorf("failed to create directory: %w", innerErr)
+	outerErr := fmt.Errorf("failed to upload to storage: %w", middleErr)
+
+	result := MapError(outerErr)
+
+	// Should be internal error (unknown type)
+	assert.Equal(t, CodeInternal, result.Code)
+	assert.Equal(t, 500, result.HTTPStatus)
+
+	// Message should contain the full error chain, not just "An unexpected error occurred"
+	assert.Contains(t, result.Message, "failed to upload to storage")
+	assert.Contains(t, result.Message, "failed to create directory")
+	assert.Contains(t, result.Message, "permission denied")
+
+	// UserMessage should be generic (for end users)
+	assert.Equal(t, "An unexpected error occurred", result.UserMessage)
+
+	// Original error preserved
+	assert.Equal(t, outerErr, result.Cause)
+}
+
+func TestMapError_ExtractsErrorChainToDetails(t *testing.T) {
+	// Create a wrapped error chain
+	inner := fmt.Errorf("root cause")
+	middle := fmt.Errorf("middle layer: %w", inner)
+	outer := fmt.Errorf("outer layer: %w", middle)
+
+	result := MapError(outer)
+
+	// Should have error chain in details
+	chain, ok := result.Details["errorChain"].([]string)
+	assert.True(t, ok, "should have errorChain in details")
+	assert.True(t, len(chain) > 1, "error chain should have multiple entries")
+
+	// Chain should include all levels
+	fullChain := fmt.Sprintf("%v", chain)
+	assert.Contains(t, fullChain, "outer layer")
+	assert.Contains(t, fullChain, "middle layer")
+	assert.Contains(t, fullChain, "root cause")
+}
+
+func TestMapError_TraceWrapPreservesCallerLocation(t *testing.T) {
+	// Create an error using TraceWrap
+	innerErr := fmt.Errorf("disk full")
+	tracedErr := TraceWrap(innerErr, "failed to write file")
+
+	result := MapError(tracedErr)
+
+	// Should have trace points in details
+	tracePoints, ok := result.Details["tracePoints"].([]TracePoint)
+	assert.True(t, ok, "should have tracePoints in details")
+	assert.Len(t, tracePoints, 1)
+
+	// Trace point should have the message
+	assert.Equal(t, "failed to write file", tracePoints[0].Message)
+
+	// Caller should point to this test file, not mapper.go
+	assert.Contains(t, result.Caller.File, "mapper_test.go")
+}
+
+func TestMapError_NestedTraceWrapPreservesAllLocations(t *testing.T) {
+	// Create a chain of traced errors
+	baseErr := fmt.Errorf("underlying error")
+	trace1 := TraceWrap(baseErr, "layer 1")
+	trace2 := TraceWrap(trace1, "layer 2")
+	trace3 := TraceWrap(trace2, "layer 3")
+
+	result := MapError(trace3)
+
+	// Should have all trace points
+	tracePoints, ok := result.Details["tracePoints"].([]TracePoint)
+	assert.True(t, ok)
+	assert.Len(t, tracePoints, 3)
+
+	// Should be in order: outermost first
+	assert.Equal(t, "layer 3", tracePoints[0].Message)
+	assert.Equal(t, "layer 2", tracePoints[1].Message)
+	assert.Equal(t, "layer 1", tracePoints[2].Message)
+
+	// Caller should be the deepest trace point (closest to original error)
+	assert.Equal(t, "layer 1", tracePoints[2].Message)
+}
+
+// Tests for OS error predicates (Phase 3)
+
+func TestMapError_OSPermissionDenied(t *testing.T) {
+	// Wrap os.ErrPermission
+	wrappedErr := fmt.Errorf("failed to create file: %w", os.ErrPermission)
+
+	result := MapError(wrappedErr)
+
+	assert.Equal(t, CodeForbidden, result.Code)
+	assert.Equal(t, 403, result.HTTPStatus)
+	assert.Equal(t, "Permission denied", result.Message)
+}
+
+func TestMapError_OSNotExist(t *testing.T) {
+	// Wrap os.ErrNotExist
+	wrappedErr := fmt.Errorf("failed to read config: %w", os.ErrNotExist)
+
+	result := MapError(wrappedErr)
+
+	assert.Equal(t, CodeNotFound, result.Code)
+	assert.Equal(t, 404, result.HTTPStatus)
+}
+
+func TestMapError_OSExist(t *testing.T) {
+	// Wrap os.ErrExist
+	wrappedErr := fmt.Errorf("failed to create file: %w", os.ErrExist)
+
+	result := MapError(wrappedErr)
+
+	assert.Equal(t, CodeConflict, result.Code)
+	assert.Equal(t, 409, result.HTTPStatus)
+}
+
+func TestMapError_OSClosed(t *testing.T) {
+	// Wrap os.ErrClosed
+	wrappedErr := fmt.Errorf("failed to write: %w", os.ErrClosed)
+
+	result := MapError(wrappedErr)
+
+	assert.Equal(t, CodeUnavailable, result.Code)
+	assert.Equal(t, 503, result.HTTPStatus)
+}
+
+func TestMapError_DeepNestedOSError(t *testing.T) {
+	// Deeply nested OS error should still be detected
+	err1 := fmt.Errorf("layer 1: %w", os.ErrPermission)
+	err2 := fmt.Errorf("layer 2: %w", err1)
+	err3 := fmt.Errorf("layer 3: %w", err2)
+
+	result := MapError(err3)
+
+	// Should still map to Forbidden thanks to errors.Is walking the chain
+	assert.Equal(t, CodeForbidden, result.Code)
+	assert.Equal(t, 403, result.HTTPStatus)
 }
