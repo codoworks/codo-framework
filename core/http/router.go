@@ -23,6 +23,7 @@ func NewRouter(scope RouterScope, addr string) *Router {
 	e.HideBanner = true
 	e.HidePort = true
 	e.Validator = NewEchoValidator()
+	e.Binder = NewBinder()
 
 	return &Router{
 		echo:  e,

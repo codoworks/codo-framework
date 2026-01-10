@@ -222,8 +222,10 @@ func ErrorResponse(err error) *Response {
 		}
 	}
 
-	// Optionally expose stack trace (dev mode only, NEVER in production)
-	if cfg.ExposeStackTraces && len(fwkErr.StackTrace) > 0 {
+	// Optionally expose stack trace as top-level field (dev mode only, NEVER in production)
+	// Only set top-level StackTrace when ExposeDetails is false (to avoid duplication)
+	// When ExposeDetails is true, the stack trace is already included in details["stackTrace"]
+	if cfg.ExposeStackTraces && !cfg.ExposeDetails && len(fwkErr.StackTrace) > 0 {
 		resp.StackTrace = fwkErr.StackTrace
 	}
 

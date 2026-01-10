@@ -392,8 +392,8 @@ func TestErrorResponse_ExposeDetails_IncludesStackTrace(t *testing.T) {
 		assert.Nil(t, resp.StackTrace)
 	})
 
-	t.Run("both details and top-level stackTrace when both enabled", func(t *testing.T) {
-		// Enable both
+	t.Run("no duplicate stackTrace when both enabled", func(t *testing.T) {
+		// Enable both - stack trace should only appear in details
 		SetHandlerConfig(HandlerConfig{
 			ExposeDetails:     true,
 			ExposeStackTraces: true,
@@ -404,11 +404,30 @@ func TestErrorResponse_ExposeDetails_IncludesStackTrace(t *testing.T) {
 
 		resp := ErrorResponse(err)
 
-		// Should have both
+		// Should have stack trace in details
 		assert.NotNil(t, resp.Details)
 		_, hasStackInDetails := resp.Details["stackTrace"]
 		assert.True(t, hasStackInDetails, "details should contain stackTrace")
-		assert.NotNil(t, resp.StackTrace, "top-level StackTrace should also be set")
+		// Top-level StackTrace should NOT be set (to avoid duplication)
+		assert.Nil(t, resp.StackTrace, "top-level StackTrace should NOT be set when ExposeDetails is true")
+	})
+
+	t.Run("top-level stackTrace when only ExposeStackTraces enabled", func(t *testing.T) {
+		// Only ExposeStackTraces - no details, so stack trace goes to top-level field
+		SetHandlerConfig(HandlerConfig{
+			ExposeDetails:     false,
+			ExposeStackTraces: true,
+		})
+		defer SetHandlerConfig(defaultHandlerConfig())
+
+		err := fwkerrors.Internal("test error")
+
+		resp := ErrorResponse(err)
+
+		// Should have top-level stack trace
+		assert.NotNil(t, resp.StackTrace, "top-level StackTrace should be set when ExposeDetails is false")
+		// Should NOT have details
+		assert.Nil(t, resp.Details, "details should be nil when ExposeDetails is false")
 	})
 }
 

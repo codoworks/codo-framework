@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -20,7 +21,15 @@ type Context struct {
 // BindAndValidate binds the request body and validates it
 func (c *Context) BindAndValidate(form any) error {
 	if err := c.Bind(form); err != nil {
-		return &BindError{Cause: err, BindType: BindTypeJSON}
+		// Detect bind type from content type for better error context
+		bindType := BindTypeJSON
+		contentType := c.Request().Header.Get("Content-Type")
+		if strings.HasPrefix(contentType, "multipart/form-data") {
+			bindType = BindTypeMultipart
+		} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+			bindType = BindTypeForm
+		}
+		return &BindError{Cause: err, BindType: bindType}
 	}
 	if err := Validate(form); err != nil {
 		return err
@@ -224,9 +233,10 @@ func (c *Context) HasWarnings() bool {
 
 // BindType constants for binding error context
 const (
-	BindTypeJSON  = "json"
-	BindTypeForm  = "form"
-	BindTypeQuery = "query"
+	BindTypeJSON      = "json"
+	BindTypeForm      = "form"
+	BindTypeQuery     = "query"
+	BindTypeMultipart = "multipart"
 )
 
 // BindError represents a binding error with context

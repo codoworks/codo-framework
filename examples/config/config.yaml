@@ -1,0 +1,406 @@
+# =============================================================================
+# CODO FRAMEWORK - COMPREHENSIVE CONFIGURATION REFERENCE
+# =============================================================================
+# This file documents ALL available configuration options for codo-framework.
+# Copy and modify as needed for your application.
+#
+# Configuration Priority (highest to lowest):
+#   1. Environment variables (CODO_*)
+#   2. .env file (auto-loaded from current directory)
+#   3. This YAML config file
+#   4. Framework defaults
+#
+# Duration formats accepted: "30s", "5m", "1h30m", or integer (seconds)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SERVICE CONFIGURATION
+# -----------------------------------------------------------------------------
+# Runtime environment identification (free-form string)
+# Common values: development, staging, production
+# Env override: CODO_SERVICE_ENVIRONMENT
+service:
+  environment: development
+
+# -----------------------------------------------------------------------------
+# DEV MODE
+# -----------------------------------------------------------------------------
+# Master switch for development mode. When enabled:
+#   - errors.handler.expose_details = true (auto)
+#   - errors.handler.expose_stack_traces = true (auto)
+#   - middleware.auth.dev_mode = true (verbose logging)
+#
+# NOTE: middleware.auth.dev_bypass_auth is NOT auto-enabled (security)
+# Env override: CODO_DEV_MODE
+dev_mode: false
+
+# -----------------------------------------------------------------------------
+# HTTP SERVER CONFIGURATION
+# -----------------------------------------------------------------------------
+# Three-router architecture for Kubernetes ingress separation:
+#   - Public:    No auth required (health checks, webhooks)
+#   - Protected: Auth required (main user-facing API)
+#   - Hidden:    Admin only (internal/privileged endpoints)
+#
+# Env overrides: CODO_PUBLIC_PORT, CODO_PROTECTED_PORT, CODO_HIDDEN_PORT
+# Validation: Ports must be 1-65535 and unique from each other
+server:
+  public_port: 8081        # Public API server (no auth)
+  protected_port: 8080     # Protected API server (auth required)
+  hidden_port: 8079        # Hidden API server (admin only)
+
+  # HTTP timeouts (all must be positive)
+  read_timeout: 30s        # Max time to read request
+  write_timeout: 30s       # Max time to write response
+  idle_timeout: 60s        # Max time for idle connections
+  shutdown_grace: 20s      # Graceful shutdown timeout
+
+# -----------------------------------------------------------------------------
+# DATABASE CONFIGURATION
+# -----------------------------------------------------------------------------
+# Supports: postgres, mysql, sqlite
+#
+# Connection options:
+#   Option 1: Set `dsn` directly (takes precedence)
+#   Option 2: Use individual fields (host, port, etc.)
+#
+# Env overrides: CODO_DB_DRIVER, CODO_DB_HOST, CODO_DB_PORT,
+#                CODO_DB_NAME, CODO_DB_USER, CODO_DB_PASSWORD, CODO_DB_SSL_MODE
+database:
+  driver: postgres         # postgres | mysql | sqlite
+
+  # Direct connection string (if set, ignores fields below)
+  # PostgreSQL: host=localhost port=5432 user=codo password=pwd dbname=codo sslmode=disable
+  # MySQL: codo:pwd@tcp(localhost:3306)/codo?parseTime=true
+  # SQLite: ./app.db or :memory:
+  dsn: ""
+
+  # Individual connection fields (used if dsn is empty)
+  host: localhost          # Database server hostname
+  port: 5432               # Database server port (1-65535)
+  name: codo               # Database name (or file path for SQLite)
+  user: codo               # Database username
+  password: ""             # Database password (use env var in production!)
+  ssl_mode: disable        # PostgreSQL only: disable, require, verify-ca, verify-full
+
+  # Connection pool settings
+  max_open_conns: 25       # Maximum open connections (minimum: 1)
+  max_idle_conns: 5        # Maximum idle connections (minimum: 0)
+  conn_max_lifetime: 5m    # Max connection lifetime (0 = unlimited)
+
+# -----------------------------------------------------------------------------
+# AUTHENTICATION CONFIGURATION
+# -----------------------------------------------------------------------------
+# Ory Kratos and Keto integration for auth and authorization
+#
+# Env overrides: CODO_KRATOS_PUBLIC_URL, CODO_KRATOS_ADMIN_URL,
+#                CODO_KETO_READ_URL, CODO_KETO_WRITE_URL, CODO_SESSION_COOKIE
+auth:
+  # Ory Kratos - Identity Management
+  kratos_public_url: http://localhost:4433   # User-facing API (login, registration)
+  kratos_admin_url: http://localhost:4434    # Server-to-server API (identity management)
+
+  # Ory Keto - Authorization / ACL
+  keto_read_url: http://localhost:4466       # ACL check endpoint
+  keto_write_url: http://localhost:4467      # ACL management endpoint
+
+  # Session cookie name (REQUIRED - must not be empty)
+  session_cookie: ory_kratos_session
+
+# -----------------------------------------------------------------------------
+# RABBITMQ CONFIGURATION
+# -----------------------------------------------------------------------------
+# Event bus for async communication. Can be disabled via features.disabled.
+#
+# Connection options:
+#   Option 1: Set `url` directly (AMQP connection string)
+#   Option 2: Use individual fields (host, port, user, etc.)
+rabbitmq:
+  # Direct connection URL (if set, ignores fields below)
+  # Format: amqp://user:pass@host:5672/vhost
+  url: ""
+
+  # Individual connection fields
+  host: localhost          # RabbitMQ server hostname
+  port: 5672               # RabbitMQ server port
+  user: guest              # RabbitMQ username
+  password: guest          # RabbitMQ password
+  vhost: /                 # RabbitMQ virtual host
+
+  # Exchange configuration
+  exchange: codo.events    # Exchange name (REQUIRED)
+  exchange_type: topic     # topic | direct | fanout | headers
+
+  # Resilience settings
+  reconnect_delay: 1s      # Initial reconnection delay
+  max_reconnect_delay: 30s # Maximum reconnection delay (exponential backoff cap)
+
+  # Consumer defaults
+  prefetch_count: 10       # Messages to prefetch per consumer (>= 0)
+  prefetch_global: false   # Apply prefetch globally to connection
+
+  # Retry configuration for failed message processing
+  retry:
+    max_retries: 3         # Maximum retry attempts
+    initial_backoff: 1s    # Initial backoff delay
+    max_backoff: 30s       # Maximum backoff delay
+    multiplier: 2.0        # Backoff multiplier (must be > 0)
+
+# -----------------------------------------------------------------------------
+# LOGGER CONFIGURATION
+# -----------------------------------------------------------------------------
+# Structured logging configuration
+#
+# Env override: CODO_LOGGER_LEVEL
+logger:
+  level: info              # debug | info | warn | error | fatal | panic
+  format: json             # json | text
+
+# -----------------------------------------------------------------------------
+# FEATURE TOGGLES
+# -----------------------------------------------------------------------------
+# Disable specific framework features. Features are ENABLED by default.
+#
+# Available features to disable:
+#   - database   (disable database client)
+#   - kratos     (disable Kratos auth client)
+#   - keto       (disable Keto authorization client)
+#   - redis      (disable Redis client)
+#   - rabbitmq   (disable RabbitMQ client)
+#   - cors       (disable CORS middleware)
+#   - gzip       (disable Gzip compression middleware)
+#
+# Env override: DISABLE_FEATURES (comma-separated, e.g., "rabbitmq,redis")
+features:
+  disabled: []
+  # disabled:
+  #   - rabbitmq
+  #   - redis
+
+# -----------------------------------------------------------------------------
+# RESPONSE CONFIGURATION
+# -----------------------------------------------------------------------------
+# API response formatting options
+response:
+  # Strict mode:
+  #   true  = Include all fields (null as null, empty arrays as [])
+  #   false = Omit null/empty fields (smaller responses)
+  strict: false
+
+# -----------------------------------------------------------------------------
+# ERROR HANDLING CONFIGURATION
+# -----------------------------------------------------------------------------
+# Controls error response behavior and stack trace capture
+errors:
+  # Handler configuration - what appears in HTTP error responses
+  handler:
+    # Include error details in responses (dev mode only!)
+    # Shows: causeMessage, location, errorChain, tracePoints, stackTrace
+    # WARNING: May expose sensitive info - NEVER enable in production
+    expose_details: false
+
+    # Include stack traces in responses (NEVER in production!)
+    # When expose_details=true, stack trace is included in details
+    # When expose_details=false and this=true, stack trace is top-level field
+    expose_stack_traces: false
+
+  # Capture configuration - internal error handling
+  capture:
+    # Capture stack traces for 5xx server errors
+    stack_trace_on_5xx: true
+
+    # Capture stack traces for 4xx client errors (usually not needed)
+    stack_trace_on_4xx: false
+
+    # Number of stack frames to capture (32 is usually sufficient)
+    stack_trace_depth: 32
+
+    # Auto-detect lifecycle phase from package name for error categorization
+    auto_detect_phase: true
+
+# -----------------------------------------------------------------------------
+# MIDDLEWARE CONFIGURATION
+# -----------------------------------------------------------------------------
+# All middleware can be individually enabled/disabled and configured.
+# Priority order determines execution sequence (lower = earlier).
+#
+# Built-in middleware priorities:
+#   Recover (0), RequestID (10), Logger (100), Auth (105),
+#   Timeout (110), CORS (120), XSS (140), Gzip (150)
+middleware:
+
+  # ---------------------------------------------------------------------------
+  # RECOVER MIDDLEWARE (Priority: 0)
+  # ---------------------------------------------------------------------------
+  # Catches panics and converts them to 500 responses with stack traces
+  recover:
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # LOGGER MIDDLEWARE (Priority: 100)
+  # ---------------------------------------------------------------------------
+  # Request/response logging with timing and status codes
+  logger:
+    enabled: true
+    # Paths to exclude from logging (useful for health checks)
+    skip_paths:
+      - /health
+      - /health/live
+      - /health/ready
+
+  # ---------------------------------------------------------------------------
+  # AUTH MIDDLEWARE (Priority: 105)
+  # ---------------------------------------------------------------------------
+  # Session validation via Ory Kratos (protected router only)
+  # Auto-disables if Kratos client is not registered
+  auth:
+    enabled: true
+
+    # Paths that bypass authentication (prefix matching)
+    skip_paths:
+      - /health
+
+    # Verbose logging (shows user ID/email in logs)
+    # Auto-enabled when root dev_mode: true
+    dev_mode: false
+
+    # Bypass real auth and use dev_identity instead
+    # SECURITY: Must be explicitly set, NOT auto-enabled by dev_mode
+    dev_bypass_auth: false
+
+    # Static identity for local development (only used when dev_bypass_auth: true)
+    dev_identity:
+      id: "dev-user-00000000-0000-0000-0000-000000000000"
+      traits:
+        email: "dev@localhost"
+        name: "Development User"
+
+    # Session caching to reduce Kratos calls
+    cache_enabled: true
+    cache_ttl: 15m
+
+  # ---------------------------------------------------------------------------
+  # TIMEOUT MIDDLEWARE (Priority: 110)
+  # ---------------------------------------------------------------------------
+  # Enforces maximum request processing time
+  timeout:
+    enabled: true
+    duration: 60s          # Request timeout (context deadline)
+
+  # ---------------------------------------------------------------------------
+  # CORS MIDDLEWARE (Priority: 120)
+  # ---------------------------------------------------------------------------
+  # Cross-Origin Resource Sharing configuration
+  cors:
+    enabled: true
+
+    # Allowed origins (use specific domains in production!)
+    allow_origins:
+      - "*"
+    # Production example:
+    #   - https://app.example.com
+    #   - https://admin.example.com
+
+    # Allowed HTTP methods
+    allow_methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+
+    # Allowed request headers
+    allow_headers:
+      - Accept
+      - Authorization
+      - Content-Type
+      - X-Request-ID
+
+    # Headers exposed to client JavaScript
+    expose_headers:
+      - X-Request-ID
+
+    # Allow credentials (cookies, auth headers)
+    # WARNING: Cannot use allow_origins: ["*"] with credentials: true
+    allow_credentials: false
+
+    # Preflight cache duration (seconds)
+    max_age: 86400         # 24 hours
+
+  # ---------------------------------------------------------------------------
+  # XSS MIDDLEWARE (Priority: 140)
+  # ---------------------------------------------------------------------------
+  # Security headers for XSS protection, clickjacking, etc.
+  xss:
+    enabled: true
+    xss_protection: "1; mode=block"        # X-XSS-Protection header
+    content_type_nosniff: nosniff          # X-Content-Type-Options header
+    x_frame_options: SAMEORIGIN            # X-Frame-Options: DENY, SAMEORIGIN, ALLOW-FROM
+    hsts_max_age: 31536000                 # Strict-Transport-Security max-age (1 year)
+
+  # ---------------------------------------------------------------------------
+  # GZIP MIDDLEWARE (Priority: 150)
+  # ---------------------------------------------------------------------------
+  # Response compression
+  gzip:
+    enabled: true
+    level: 5               # Compression level 1-9 (5 = balanced speed/size)
+    min_size: 1024         # Minimum response size to compress (bytes)
+
+  # ---------------------------------------------------------------------------
+  # HEALTH CHECK MIDDLEWARE
+  # ---------------------------------------------------------------------------
+  # Provides /health, /health/live, /health/ready endpoints
+  health:
+    enabled: true
+    # Show detailed health info in production (component status)
+    show_details_in_prod: false
+
+  # ---------------------------------------------------------------------------
+  # PAGINATION MIDDLEWARE
+  # ---------------------------------------------------------------------------
+  # Parses pagination parameters and sets them in request context
+  # Opt-in: disabled by default
+  pagination:
+    enabled: false
+
+    # Default items per page (when not specified in request)
+    default_page_size: 20
+
+    # Maximum items per page (prevents excessive queries)
+    max_page_size: 100
+
+    # Default pagination type
+    default_type: offset   # offset | cursor
+
+    # Log pagination params per request (debug)
+    log_details: false
+
+    # Query parameter names (customize if needed)
+    param_names:
+      page: page           # Page number parameter
+      per_page: per_page   # Items per page parameter
+      cursor: cursor       # Cursor for cursor-based pagination
+      direction: direction # Pagination direction: next | prev
+
+# =============================================================================
+# CUSTOM APPLICATION CONFIGURATION
+# =============================================================================
+# Any YAML sections not recognized by the framework are captured in the
+# Extensions map and available to your application code.
+#
+# Access via: cfg.Extensions["stripe"].(map[string]any)["api_key"]
+#
+# Example custom sections:
+
+# stripe:
+#   api_key: sk_test_xxx
+#   webhook_secret: whsec_xxx
+
+# sendgrid:
+#   api_key: SG.xxx
+
+# custom_settings:
+#   feature_flag_x: true
+#   max_upload_size: 10485760  # 10MB
