@@ -6,6 +6,7 @@ import (
 
 	"github.com/codoworks/codo-framework/core/config"
 	"github.com/codoworks/codo-framework/core/db/migrations"
+	"github.com/codoworks/codo-framework/core/db/seeds"
 	"github.com/codoworks/codo-framework/core/http"
 )
 
@@ -71,6 +72,9 @@ func (m AppMode) String() string {
 // MigrationAdder is a function that adds migrations to a runner
 type MigrationAdder func(*migrations.Runner)
 
+// SeedAdder is a function that adds database seeds to a seeder
+type SeedAdder func(*seeds.Seeder)
+
 // HandlerRegistrar is a function that registers HTTP handlers
 // It receives a database client for handler initialization
 type HandlerRegistrar func() error
@@ -100,6 +104,9 @@ type BootstrapOptions struct {
 
 	// MigrationAdder adds database migrations (used by all modes except RouteInspector)
 	MigrationAdder MigrationAdder
+
+	// SeedAdder adds database seeds (optional, used by db seed command)
+	SeedAdder SeedAdder
 
 	// CustomClientInit initializes custom clients (optional)
 	CustomClientInit CustomClientInitializer
