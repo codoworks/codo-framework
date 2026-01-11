@@ -85,15 +85,15 @@ func bootstrapHTTPServer(cfg *config.Config, opts BootstrapOptions) (BaseApp, er
 		return nil, fmt.Errorf("middleware init: %w", err)
 	}
 
+	// Make config accessible to handlers (must be before HandlerRegistrar so handlers can read config)
+	http.SetGlobalConfig(cfg)
+
 	// Register handlers
 	if opts.HandlerRegistrar != nil {
 		if err := opts.HandlerRegistrar(); err != nil {
 			return nil, fmt.Errorf("handler registration: %w", err)
 		}
 	}
-
-	// Make config accessible to handlers
-	http.SetGlobalConfig(cfg)
 
 	// Prepare routes (doesn't start server)
 	if err := server.PrepareRoutes(); err != nil {
@@ -140,15 +140,15 @@ func bootstrapHTTPRouter(cfg *config.Config, opts BootstrapOptions) (BaseApp, er
 	routerType := routerTypeFromScope(scope)
 	orchestrator.Apply(router, routerType)
 
+	// Make config accessible to handlers (must be before HandlerRegistrar so handlers can read config)
+	http.SetGlobalConfig(cfg)
+
 	// Register handlers
 	if opts.HandlerRegistrar != nil {
 		if err := opts.HandlerRegistrar(); err != nil {
 			return nil, fmt.Errorf("handler registration: %w", err)
 		}
 	}
-
-	// Make config accessible to handlers
-	http.SetGlobalConfig(cfg)
 
 	// Prepare routes
 	if err := router.RegisterHandlers(); err != nil {
