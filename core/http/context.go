@@ -171,6 +171,13 @@ func (c *Context) Created(payload any) error {
 	return c.respond(http.StatusCreated, resp)
 }
 
+// Accepted sends a 202 Accepted response with any accumulated warnings
+func (c *Context) Accepted(payload any) error {
+	resp := Accepted(payload)
+	resp.Warnings = c.warnings
+	return c.respond(http.StatusAccepted, resp)
+}
+
 // respond is a helper that applies strict mode if configured
 func (c *Context) respond(status int, resp *Response) error {
 	cfg := GetHandlerConfig()

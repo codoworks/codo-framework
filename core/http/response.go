@@ -152,6 +152,26 @@ func CreatedWithMessage(message string, payload any) *Response {
 	}
 }
 
+// Accepted creates a 202 response for async operations
+func Accepted(payload any) *Response {
+	return &Response{
+		Code:       "ACCEPTED",
+		Message:    "Request accepted for processing",
+		Payload:    payload,
+		HTTPStatus: http.StatusAccepted,
+	}
+}
+
+// AcceptedWithMessage creates a 202 response with a custom message
+func AcceptedWithMessage(message string, payload any) *Response {
+	return &Response{
+		Code:       "ACCEPTED",
+		Message:    message,
+		Payload:    payload,
+		HTTPStatus: http.StatusAccepted,
+	}
+}
+
 // NoContentResponse creates a 204 response
 func NoContentResponse() *Response {
 	return &Response{
